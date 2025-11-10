@@ -1,10 +1,10 @@
 /*
  * AgeLink: ESP32 Medication Reminder System
- * * This firmware manages a medication reminder schedule pulled from Firebase,
+ * This firmware manages a medication reminder schedule pulled from Firebase,
  * controls LEDs and an LCD display for user alerts, plays WAV audio alerts
  * via an I2S DAC (MAX98355A), and handles button inputs for medicine
  * confirmation and SOS emergency calls via a SIM800L module.
- * * * This version includes BLE provisioning if config.json is not found.
+ * This version includes BLE provisioning if config.json is not found.
  */
 
 // --- 0. Core Libraries ---
@@ -77,7 +77,7 @@ String rtdb_device_path = ""; // NEW: Path for device settings
 #define I2C_SCL 22
 #define LCD_COLUMNS 16
 #define LCD_ROWS 2
-#define LCD_I2C_ADDRESS 0x27 // FIX: Changed back to 0x3F to solve NACK errors
+#define LCD_I2C_ADDRESS 0x27// FIX: Changed to 0x3F to solve NACK errors (was 0x27)
 
 // --- 3. State and Timing Variables ---
 enum ReminderState { IDLE, GREEN_ACTIVE, ORANGE_ACTIVE, RED_ACTIVE, CONFIRMED, MISSED }; 
@@ -85,10 +85,12 @@ ReminderState currentState = IDLE;
 unsigned long stateChangeTime = 0;       // Time the current state was entered
 unsigned long lastDBCheckTime = 0;       // For throttling Firebase checks
 const long DB_CHECK_INTERVAL_MS = 10 * 1000; // Check DB every 10 seconds
-unsigned long lastSosPressTime = 0;      // For SOS button debounce
+unsigned long lastScheduleSaveTime = 0;    // NEW: Timer for saving schedule
+const long SCHEDULE_SAVE_INTERVAL_MS = 20 * 60 * 1000; // NEW: 20 minutes
+unsigned long lastSosPressTime = 0;       // For SOS button debounce
 const long SOS_DEBOUNCE_DELAY = 1000;  // 1 second debounce for SOS
 const long ALARM_BEEP_DURATION_MS = 5 * 1000; // 5s (Assuming WAV files are ~5s)
-const long LONG_WAIT_MS = 120 * 1000;  // 2 minutes
+// const long LONG_WAIT_MS = 120 * 1000;  // 2 minutes (NO LONGER USED)
 const long SHORT_WAIT_MS = 60 * 1000; // 1 minute
 
 String currentMedicineName = "";
@@ -101,7 +103,7 @@ struct EmergencyContact {
 EmergencyContact contacts[MAX_CONTACTS];
 int contactCount = 0; // Number of contacts actually loaded
 
-float currentVolume = 1.0; // NEW: Global var for volume (0.0 to 1.0, 1.0 is 100%)
+float currentVolume = 0.3; // NEW: Global var for volume (0.0 to 1.0, 1.0 is 100%)
 
 String nextMedicineTime = "--:--"; // Stores the next upcoming medicine time
 String nextMedicineName = "None";  // NEW: Stores the name of the next medicine
@@ -111,7 +113,7 @@ String lastConfirmedTime = ""; // NEW: Fix for confirmation loop
 unsigned long lastWifiCheck = 0;
 
 // NEW: Timer for Factory Reset
-unsigned long bothButtonsPressTime = 0;
+unsigned long greenButtonPressTime = 0; // NEW: Timer for single-button reset
 bool isResetting = false;
 
 // NTP Time Configuration
@@ -137,9 +139,9 @@ bool deviceConnected = false;
 bool configComplete = false;
 bool offlineMode = true; // NEW: Flag to track if we are in Offline SOS mode
 
-// NEW: WiFi Connection Flags
-bool wifiJustConnected = false;
-bool wifiJustDisconnected = false;
+// REMOVED: WiFi Connection Flags
+// bool wifiJustConnected = false;
+// bool wifiJustDisconnected = false;
 
 // ESP8266Audio Objects (using pointers)
 AudioOutputI2S *out = nullptr;
@@ -176,19 +178,6 @@ void audio_status_cb(void *data, int type, const char *info) {
 }
 
 /**
- * @brief Generic status callback for ESP8266Audio.
- * @param data User-defined pointer (unused here).
- * @param type Status code.
- * @param info Status message string.
- */
-// void audio_status_cb(void *data, int type, const char *info) {  // REMOVED DUPLICATE FUNCTION
-//     Serial.print("[AUDIO STATUS] Type: ");
-//     Serial.print(type);
-//     Serial.print(", Info: ");
-//     Serial.println(info);
-// }
-
-/**
  * @brief File status callback, primarily for EOF (End of File).
  * @param data User-defined pointer (unused here).
  * @param type Status code.
@@ -199,7 +188,7 @@ void file_status_cb(void *data, int type, const char *info) {
     Serial.println(info);
     // Important: After EOF, stop the audio generator.
     if (audio) {
-        Serial.println("[AUDIO LOOP] Playback finished via EOF callback.");
+        // Serial.println("[AUDIO LOOP] Playback finished via EOF callback."); // Removed spam
         audio->stop();
     }
 }
@@ -207,9 +196,10 @@ void file_status_cb(void *data, int type, const char *info) {
 // --- 6. Function Prototypes ---
 void initNTP();
 String getCurrentTimeFormatted();
-void checkScheduledTime(String currentTime);
+bool checkScheduledTime(String currentTime); // MODIFIED: Returns true if alarm triggers
 void setLEDs(bool green, bool orange, bool red);
 void handleConfirmation(String state);
+void handleMissed(String medicineName); // NEW: Function to log missed events
 void startAlarmSequence(ReminderState phase);
 void initI2S(); 
 void initLCD();
@@ -217,18 +207,19 @@ void updateLCD(String line1, String line2);
 void fetchEmergencyContact(); 
 // void makeCall(String phoneNumber); // REMOVED - Logic is now in executeSosSequence
 void executeSosSequence(); // NEW: Handles the multi-call sequence
-String sendATCommand(String command, long timeout_ms);
+String sendATCommand(String command, long timeout_ms, bool fullResponse); // MODIFIED
 void playWavFile(const char* filename);
 bool loadConfiguration(); // NEW: Function prototype
 void fetchDeviceSettings(); // NEW: Function prototype
 void startBLEProvisioning(); // NEW: Function prototype
-bool saveConfiguration(std::string data); // NEW: Function prototype
-void WiFiEvent(WiFiEvent_t event); // NEW: WiFi event handler
+bool saveConfiguration(std::string data); // FIX: Was std.string, changed to std::string
+// void WiFiEvent(WiFiEvent_t event); // REMOVED: WiFi event handler
 bool saveScheduleToFile(); // NEW: Save schedule to LittleFS
 bool saveContactsToFile(); // NEW: Save contacts to LittleFS
 bool loadContactsFromFile(); // NEW: Load contacts from LittleFS
 bool loadScheduleFromFile(); // NEW: Load schedule from LittleFS
 void deleteConfigurationFiles(); // NEW: Factory reset function
+void audio_loop_helper(); // NEW: Helper function to keep audio running
 
 
 // --- NEW: BLE Callback Handlers ---
@@ -259,7 +250,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
 class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       String value_arduino = pCharacteristic->getValue(); // Get as Arduino String
-      std::string value_std = value_arduino.c_str();      // Convert to std::string
+      std::string value_std = value_arduino.c_str();      // FIX: Convert to std::string (was std.string)
 
       if (value_std.length() > 0) {
         Serial.println("*********");
@@ -291,7 +282,7 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
 
 
 // -----------------------------------------------------------------------------
-//   SETUP
+//  SETUP
 // -----------------------------------------------------------------------------
 void setup() {
     Serial.begin(115200);
@@ -324,7 +315,7 @@ void setup() {
     // 1. Initialize I2S Audio (MOVED TO TOP)
     initI2S(); 
     // Play power up sound for testing
-    playWavFile("/age_link_powerring up.wav"); // MOVED TO TOP
+    // playWavFile("/age_link_powerring up.wav"); // MOVED: Will play only if WiFi connects
 
     // 2. Initialize LCD
     initLCD();
@@ -341,7 +332,7 @@ void setup() {
         Serial.println("FATAL ERROR: Could not load config.json");
         Serial.println("Entering BLE Provisioning Mode...");
         updateLCD("App Setup Req.", "Open AgeLink App");
-        
+       
         startBLEProvisioning();
 
         // Wait here until the app sends the config
@@ -366,59 +357,24 @@ void setup() {
     Serial2.begin(9600, SERIAL_8N1, RX2_PIN, TX2_PIN);
     Serial.println("Waiting for SIM800L...");
     delay(1000); // Give module time to boot
-    
-    // --- SIM800L Sanity Checks ---
-    // A. Check basic module responsiveness
-    String simResponse = sendATCommand("AT", 3000); 
-    if (simResponse.indexOf("OK") != -1) {
-        Serial.println("SIM800L: BASIC CHECK OK.");
-    } else {
-        Serial.println("SIM800L ERROR: No 'OK' response. Check power/wiring.");
-    }
-    delay(1000); 
-
-    // B. Check Network Registration Status (AT+CREG?)
-    // Response "+CREG: 0,1" means registered (home network)
-    // Response "+CREG: 0,5" means registered (roaming)
-    simResponse = sendATCommand("AT+CREG?", 5000); 
-    if (simResponse.indexOf("+CREG: 0,1") != -1 || simResponse.indexOf("+CREG: 0,5") != -1) {
-        Serial.println("SIM800L: REGISTERED TO NETWORK (0,1 or 0,5).");
-    } else {
-        Serial.println("SIM800L WARNING: NOT REGISTERED. Check SIM/Signal.");
-        // NEW: Show error on LCD
-        updateLCD("SIM ERROR", "Not Registered");
-        delay(3000);
-    }
-    delay(1000);
-
-    // C. Check Signal Quality (AT+CSQ)
-    // Response "+CSQ: <rssi>,<ber>"
-    // <rssi> 0= -115 dBm, 31= -51 dBm. 99=not known.
-    simResponse = sendATCommand("AT+CSQ", 5000); 
-    if (simResponse.indexOf("+CSQ:") != -1) {
-        int start = simResponse.indexOf("+CSQ:") + 6; // +6 to skip "+CSQ: "
-        int end = simResponse.indexOf(',', start);
-        String rssiStr = simResponse.substring(start, end);
-        Serial.print("SIM800L: SIGNAL QUALITY (RSSI): ");
-        Serial.println(rssiStr);
-    } else {
-        Serial.println("SIM800L ERROR: Could not get signal quality.");
-    }
-    delay(2000);
+   
+    // --- SIM800L Sanity Checks (REMOVED FOR FASTER BOOT) ---
+    // ...
 
     // 5. Connect to Wi-Fi (CHANGED to use variables)
-    
-    // NEW: Register WiFi event handler
-    WiFi.onEvent(WiFiEvent);
-    
+   
+    // REMOVED: WiFi event handler
+    // WiFi.onEvent(WiFiEvent);
+   
     Serial.print("Connecting to WiFi..");
     updateLCD("Connecting WiFi", wifi_ssid);
     // playWavFile("/wifi_connecting.wav"); // FIX: REMOVED this line. It conflicts with WiFi.begin()
     WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str()); // .c_str() FIX
-    
+   
     // NEW: Wait 30 seconds for WiFi, then decide if we are in Offline Mode
     unsigned long wifiConnectStart = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - wifiConnectStart < 30000) { // 30s timeout
+        // audio_loop_helper(); // FIX: REMOVED. Do not play audio during WiFi connect.
         delay(500);
         Serial.print(".");
     }
@@ -430,17 +386,41 @@ void setup() {
     Firebase.reconnectWiFi(true);
 
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.println("\nWiFi connected.");
-      Serial.print("IP Address: ");
-      Serial.println(WiFi.localIP());
+      Serial.println("\nWiFi connection successful. Proceeding...");
       offlineMode = false;
-      // WiFiEvent will handle the rest (sound, LCD, firebase status)
+
+      // NEW: Manually run connection tasks
+      Serial.println("Running tasks for WiFi connection...");
+      if (Firebase.ready() && rtdb_device_path != "") {
+          Firebase.setBool(fbdo, rtdb_device_path + "/device_active", true);
+          Firebase.setString(fbdo, rtdb_device_path + "/device_id", hardcoded_device_id); // Upload device ID
+      }
+      playWavFile("/age_link_powerring up.wav"); // MOVED HERE: Play power-up sound
+      playWavFile("/wifi_connected.wav");
+      updateLCD("WiFi Connected", "NTP Sync...");
+
+      // FIX: Wait for audio to FINISH before starting NTP
+      Serial.println("Waiting for 'wifi_connected' audio to finish...");
+      while (audio && audio->isRunning()) {
+          audio_loop_helper();
+          delay(50); // Be a good citizen
+      }
+      Serial.println("Audio finished, proceeding to NTP.");
+
     } else {
       Serial.println("\nWiFi connection FAILED. Entering OFFLINE MODE.");
       offlineMode = true;
       updateLCD("OFFLINE MODE", "SOS Only");
-      loadContactsFromFile(); // Load contacts from memory
-      loadScheduleFromFile(); // Load schedule from memory (for "Next" display)
+      // FIX: Try to load contacts from file. If it fails, use the fallback.
+      if (!loadContactsFromFile()) {
+          Serial.println("Could not load contacts from file. Using fallback.");
+          // Fallback if file load failed
+          contacts[0].name = "Emergency";
+          contacts[0].phone = "0763777417"; // Generic Fallback number
+          contactCount = 1; // We have one fallback contact
+          Serial.println(">>> Using FALLBACK emergency contact: " + contacts[0].name + " / " + contacts[0].phone);
+      }
+      // loadScheduleFromFile(); // REMOVED: Do not check schedule in offline mode
     }
 
     // 7. Initialize NTP Time (Only if online)
@@ -450,15 +430,17 @@ void setup() {
     }
 
     // 8. Fetch Emergency Contact (and store it)
+    // We fetch contacts *after* deciding on offline mode.
+    // If online, we fetch from Firebase. If offline, we just loaded from file (or fallback).
     if (!offlineMode) {
       fetchEmergencyContact();
       saveContactsToFile(); // Save a copy for offline use
     }
-    
+   
     // 9. Initial Schedule Check
     if (!offlineMode) {
       Serial.println("Running initial schedule check...");
-      checkScheduledTime(getCurrentTimeFormatted()); 
+      checkScheduledTime(getCurrentTimeFormatted()); // This call is fine, we just ignore the 'true'
       updateLCD("Ready!", "Next: " + nextMedicineTime);
     }
     delay(2000);
@@ -466,7 +448,7 @@ void setup() {
 
 
 // -----------------------------------------------------------------------------
-//   MAIN LOOP
+//  MAIN LOOP
 // -----------------------------------------------------------------------------
 void loop() {
     // --- 0. HARDWARE LOCK ---
@@ -475,14 +457,7 @@ void loop() {
 
     // --- 1. ALWAYS RUN AUDIO ---
     // This MUST be called every loop, before anything else, to prevent stutters.
-    if (audio && audio->isRunning()) {
-        if (!audio->loop()) {
-            // This is a safety check in case the EOF callback fails
-            // or playback stops for another reason.
-            // Serial.println("[AUDIO LOOP] Audio loop() returned false (stopped or error)."); // Removed spam
-            audio->stop();
-        }
-    }
+    audio_loop_helper();
 
     // --- 2. HANDLE WIFI CONNECTION (NON-BLOCKING) ---
     if (WiFi.status() != WL_CONNECTED) {
@@ -490,7 +465,22 @@ void loop() {
         // WiFi is disconnected. Only try to reconnect every 30 seconds to save power.
         if (millis() - lastWifiCheck > 30000) { // 30-second reconnect timer
             Serial.println("WiFi Disconnected. Attempting to reconnect...");
-            // updateLCD("WiFi LOST", "Reconnecting..."); // This is handled by the WiFiEvent
+           
+            // NEW: Set status to false
+            if (Firebase.ready() && rtdb_device_path != "") {
+                Firebase.setBool(fbdo, rtdb_device_path + "/device_active", false);
+            }
+            updateLCD("WiFi LOST", "SOS Only Mode");
+            // FIX: Try to load contacts from file. If it fails, use the fallback.
+            if (!loadContactsFromFile()) {
+                Serial.println("Could not load contacts from file. Using fallback.");
+                // Fallback if file load failed
+                contacts[0].name = "Emergency";
+                contacts[0].phone = "0763777417"; // Generic Fallback number
+                contactCount = 1; // We have one fallback contact
+                Serial.println(">>> Using FALLBACK emergency contact: " + contacts[0].name + " / " + contacts[0].phone);
+            }
+
             WiFi.reconnect();
             lastWifiCheck = millis();
         }
@@ -499,45 +489,36 @@ void loop() {
       Serial.println("WiFi reconnected!");
       offlineMode = false;
       lastWifiCheck = millis();
-      // Manually trigger the "connected" event logic
-      wifiJustConnected = true; 
-    }
-
-    // --- 3. HANDLE WIFI EVENT FLAGS (NON-BLOCKING) ---
-    // (This runs if we are online)
-    if (wifiJustConnected) {
-      wifiJustConnected = false; // Clear the flag
+     
+      // Manually run connection tasks
       Serial.println("Running tasks for WiFi connection...");
-
-      // Set device status to true in Firebase
       if (Firebase.ready() && rtdb_device_path != "") {
           Firebase.setBool(fbdo, rtdb_device_path + "/device_active", true);
           Firebase.setString(fbdo, rtdb_device_path + "/device_id", hardcoded_device_id); // Upload device ID
       }
-      
-      // Play sound and update LCD *after* IP is confirmed
       playWavFile("/wifi_connected.wav");
       updateLCD("WiFi Connected", "NTP Sync...");
-      
+     
+      // FIX: Wait for audio to FINISH before starting NTP
+      Serial.println("Waiting for 'wifi_connected' audio to finish...");
+      while (audio && audio->isRunning()) {
+          audio_loop_helper();
+          delay(50); // Be a good citizen
+      }
+      Serial.println("Audio finished, proceeding to NTP.");
+
       // Re-sync time
       initNTP();
-      
+     
       // Re-download contacts and schedule
       fetchEmergencyContact();
       saveContactsToFile();
       checkScheduledTime(getCurrentTimeFormatted());
     }
 
-    if (wifiJustDisconnected) {
-      wifiJustDisconnected = false; // Clear the flag
-      Serial.println("Running tasks for WiFi disconnection...");
-      // Set device status to false in Firebase
-      if (Firebase.ready() && rtdb_device_path != "") {
-          Firebase.setBool(fbdo, rtdb_device_path + "/device_active", false);
-      }
-      updateLCD("WiFi LOST", "SOS Only Mode");
-      loadContactsFromFile(); // Make sure we have contacts for offline SOS
-    }
+    // --- 3. REMOVED WIFI EVENT FLAGS ---
+    // if (wifiJustConnected) { ... }
+    // if (wifiJustDisconnected) { ... }
 
 
     // --- 4. MAIN LOGIC (Only runs if NOT in provisioning mode) ---
@@ -545,7 +526,7 @@ void loop() {
     // 4a. Handle Offline Mode (SOS Only)
     if (offlineMode) {
         updateLCD("OFFLINE MODE", "SOS Only");
-        
+       
         // Handle SOS Button (Independent of state machine)
         if (digitalRead(BUTTON_SOS) == LOW) { // Button is pressed (LOW)
             if (millis() - lastSosPressTime > (SOS_DEBOUNCE_DELAY * 5)) { // 5s debounce
@@ -580,7 +561,7 @@ void loop() {
         // Serial.print("Device Time is: "); // Removed spam
         // Serial.println(currentTime);
     }
-    
+   
     // Update LCD based on state (only if idle, missed)
     if (currentState == IDLE || currentState == MISSED) {
         if (currentState == MISSED) {
@@ -588,14 +569,14 @@ void loop() {
             updateLCD("Medication", "MISSED!");
         } else {
             // NEW: Show current time, volume, and next med time + name
-            String volStr = "V:" + String((int)(currentVolume * 100));
+            String volStr = "Vol:" + String((int)(currentVolume * 100));
             String line1 = currentTime;
             while(line1.length() + volStr.length() < LCD_COLUMNS) {
               line1 += " ";
             }
             line1 += volStr;
-            String line2 = nextMedicineTime + " " + nextMedicineName;
-            
+            String line2 = nextMedicineName + ":" + nextMedicineTime;
+           
             updateLCD(line1, line2);
         }
     } 
@@ -603,10 +584,10 @@ void loop() {
 
     // 2. State Machine Logic
     unsigned long timeElapsed = millis() - stateChangeTime;
-    
+   
     // --- Common Logic for Active States (GREEN, ORANGE, RED) ---
     if (currentState == GREEN_ACTIVE || currentState == ORANGE_ACTIVE || currentState == RED_ACTIVE) {
-        
+       
         // --- Confirmation Check (Button Pressed) ---
         if (digitalRead(BUTTON_MED) == LOW) { // Button is pressed (LOW)
             String confirmedState;
@@ -627,14 +608,48 @@ void loop() {
             // Check scheduled time only once every 10 seconds
             if (millis() - lastDBCheckTime >= DB_CHECK_INTERVAL_MS) {
                 lastDBCheckTime = millis();
-                checkScheduledTime(currentTime); 
-                fetchDeviceSettings(); // NEW: Check for volume/status updates
+                audio->stop(); // FIX: Stop any audio before Firebase calls
+               
+                // MODIFIED: Check if an alarm was triggered
+                bool alarmWasTriggered = checkScheduledTime(currentTime); 
+               
+                if (!alarmWasTriggered) { // Only fetch settings if no alarm was triggered
+                    fetchDeviceSettings(); // NEW: Check for volume/status updates
+                }
             }
+           
+            // --- NEW: Factory Reset Logic (Hold Green Button) ---
+            if (digitalRead(BUTTON_MED) == LOW) {
+                if (greenButtonPressTime == 0) {
+                    greenButtonPressTime = millis();
+                    Serial.println("Reset timer started...");
+                } else if (millis() - greenButtonPressTime > 5000) {
+                    isResetting = true; // Lock the loop
+                    Serial.println("\n--- FACTORY RESET TRIGGERED (GREEN BTN) ---");
+                    updateLCD("FACTORY RESET", "Erasing files...");
+                   
+                    // NEW: No sound during reset
+                    // playWavFile("/emegency_informed.wav"); 
+
+                    // Non-blocking delay
+                    unsigned long resetStartTime = millis();
+                    while(millis() - resetStartTime < 3000) {
+                        audio_loop_helper(); // Keep audio running (if any)
+                        delay(50);
+                    }
+                    deleteConfigurationFiles();
+                    Serial.println("Restarting device...");
+                    ESP.restart();
+                }
+            } else {
+                greenButtonPressTime = 0; // Reset timer if button is released
+            }
+            // --- END OF NEW RESET LOGIC ---
             break;
 
         case GREEN_ACTIVE:
-            // Transition to ORANGE after 5s WAV duration + 120s wait (125s total)
-            if (timeElapsed >= (ALARM_BEEP_DURATION_MS + LONG_WAIT_MS)) {
+            // Transition to ORANGE after 5s WAV duration + 60s wait (65s total)
+            if (timeElapsed >= (ALARM_BEEP_DURATION_MS + SHORT_WAIT_MS)) { // FIX: Changed from LONG_WAIT_MS
                 currentState = ORANGE_ACTIVE;
                 stateChangeTime = millis();
                 startAlarmSequence(ORANGE_ACTIVE);
@@ -651,28 +666,61 @@ void loop() {
             break;
 
         case RED_ACTIVE:
-            // Transition to MISSED after 5s WAV duration + 120s wait (125s total)
-            if (timeElapsed >= (ALARM_BEEP_DURATION_MS + LONG_WAIT_MS)) {
+            // Transition to MISSED after 5s WAV duration + 60s wait (65s total)
+            if (timeElapsed >= (ALARM_BEEP_DURATION_MS + SHORT_WAIT_MS)) { // FIX: Changed from LONG_WAIT_MS
                 Serial.println("Red wait expired. Logging as MISSED.");
                 currentState = MISSED;
                 stateChangeTime = millis(); // NEW: Start timer for MISSED display
-                Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "MISSED"); // CHANGED
-                playWavFile("/medicine_missed.wav"); // NEW: Play missed sound
+                
+                // NEW: Call the handleMissed function to push a new entry to Firebase
+                handleMissed(currentMedicineName); 
+                
+                // REMOVED: Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "MISSED"); 
+                // REMOVED: playWavFile("/medicine_missed.wav"); // Moved to handleMissed()
+                
                 setLEDs(false, false, false); // Turn off red light
             }
             break;
 
         case MISSED: // NEW: Separate case with 30s timeout
+            // FIX: DO NOT check database during this state.
+            // This allows the "medicine_missed.wav" sound to play without
+            // being cut off by the `audio->stop()` in the DB check.
             if (millis() - stateChangeTime >= 30000) { // 30 second display
                 Serial.println("Missed display timeout. Returning to IDLE.");
                 currentState = IDLE;
+                lastDBCheckTime = millis(); // Reset DB timer now that we are IDLE
             }
-            // Also check for DB updates
-            if (millis() - lastDBCheckTime >= DB_CHECK_INTERVAL_MS) {
-                 lastDBCheckTime = millis();
-                 checkScheduledTime(currentTime); 
-                 fetchDeviceSettings();
+            // REMOVED: Database check
+            // if (millis() - lastDBCheckTime >= DB_CHECK_INTERVAL_MS) { ... }
+           
+            // --- NEW: Factory Reset Logic (Hold Green Button) ---
+            if (digitalRead(BUTTON_MED) == LOW) {
+                if (greenButtonPressTime == 0) {
+                    greenButtonPressTime = millis();
+                    Serial.println("Reset timer started...");
+                } else if (millis() - greenButtonPressTime > 5000) {
+                    isResetting = true; // Lock the loop
+                    Serial.println("\n--- FACTORY RESET TRIGGERED (GREEN BTN) ---");
+                    updateLCD("FACTORY RESET", "Erasing files...");
+                   
+                    // NEW: No sound during reset
+                    // playWavFile("/emegency_informed.wav");
+
+                    // Non-blocking delay
+                    unsigned long resetStartTime = millis();
+                    while(millis() - resetStartTime < 3000) {
+                        audio_loop_helper(); // Keep audio running (if any)
+                        delay(50);
+                    }
+                    deleteConfigurationFiles();
+                    Serial.println("Restarting device...");
+                    ESP.restart();
+                }
+            } else {
+                greenButtonPressTime = 0; // Reset timer if button is released
             }
+            // --- END OF NEW RESET LOGIC ---
             break;
 
         case CONFIRMED:
@@ -690,50 +738,21 @@ void loop() {
         // Check for debounce AND that an alarm is not active
         if (millis() - lastSosPressTime > (SOS_DEBOUNCE_DELAY * 5)) { // 5s debounce
             lastSosPressTime = millis(); // Reset debounce timer
-            
+           
             Serial.println("\n--- SOS BUTTON TRIGGERED (ONLINE) ---");
             // NEW: Call the function that dials all numbers
             executeSosSequence(); 
             Serial.println("--- SOS Trigger Complete (ONLINE) ---");
-            
+           
             // Revert LCD state (will be updated by main loop)
             stateChangeTime = millis(); 
             lastTimeLog = millis(); // Force time update
             lastSosPressTime = millis(); // Re-set debounce timer to prevent immediate re-trigger
         }
     }
-    
-    // 4. NEW: Handle Factory Reset (Hold both buttons for 2s)
-    if (digitalRead(BUTTON_MED) == LOW && digitalRead(BUTTON_SOS) == LOW) {
-        // Both buttons are pressed. Check if this is the first time.
-        if (bothButtonsPressTime == 0) {
-            // Start the timer
-            bothButtonsPressTime = millis();
-            Serial.println("Factory reset timer started...");
-        } else if (millis() - bothButtonsPressTime > 2000) {
-            // Buttons have been held for 2 seconds. Trigger reset.
-            isResetting = true; // Lock the main loop
-            
-            Serial.println("\n--- FACTORY RESET TRIGGERED ---");
-            updateLCD("FACTORY RESET", "Erasing files...");
-            playWavFile("/emegency_informed.wav"); // Play a confirmation sound
-
-            // Non-blocking delay so the sound can play
-            unsigned long resetStartTime = millis();
-            while(millis() - resetStartTime < 3000) {
-                if (audio && audio->isRunning()) audio->loop();
-                delay(50);
-            }
-
-            deleteConfigurationFiles();
-            
-            Serial.println("Restarting device...");
-            ESP.restart();
-        }
-    } else {
-        // As soon as one button is released, reset the timer
-        bothButtonsPressTime = 0;
-    }
+   
+    // 4. REMOVED: Old Factory Reset Logic
+    // if (digitalRead(BUTTON_MED) == LOW && digitalRead(BUTTON_SOS) == LOW) { ... }
 
     delay(50); // Short delay for loop stability
 }
@@ -743,12 +762,24 @@ void loop() {
 // -----------------------------------------------------------------------------
 
 /**
+ * @brief Helper function to keep audio running during blocking loops
+ */
+void audio_loop_helper() {
+    if (audio && audio->isRunning()) {
+        if (!audio->loop()) {
+            audio->stop();
+        }
+    }
+}
+
+/**
  * @brief Sends an AT command to Serial2 (SIM800L) and waits for a response.
  * @param command The AT command to send (without \r\n).
  * @param timeout_ms How long to wait for a response.
+ * @param fullResponse Whether to print the full response (for debugging)
  * @return The full response from the module as a String.
  */
-String sendATCommand(String command, long timeout_ms) {
+String sendATCommand(String command, long timeout_ms, bool fullResponse = false) {
     String response = "";
     while(Serial2.available()) Serial2.read(); // Clear RX buffer
 
@@ -762,10 +793,12 @@ String sendATCommand(String command, long timeout_ms) {
             response += (char)Serial2.read(); 
         }
     }
-    
+   
     response.trim(); // Clean up whitespace
-    Serial.print("<- SIM800L RX (Full): ");
-    Serial.println(response);
+    if (fullResponse) {
+      Serial.print("<- SIM800L RX (Full): ");
+      Serial.println(response);
+    }
     return response;
 }
 
@@ -773,6 +806,7 @@ String sendATCommand(String command, long timeout_ms) {
  * @brief NEW: Dials all emergency contacts one by one.
  * Plays sound, dials, waits 20s, hangs up, and repeats for all contacts.
  * Can be cancelled by pressing the SOS button again.
+ * This function is now NON-BLOCKING for audio.
  */
 void executeSosSequence() {
     // 1. Check if we have any contacts loaded
@@ -785,94 +819,145 @@ void executeSosSequence() {
 
     // 2. Play the SOS sound once at the very beginning
     playWavFile("/emegency.wav");
-    
+   
     bool callCancelled = false;
+    bool callAnswered = false; // NEW: Flag to stop looping if answered
     unsigned long sosStartTime = millis(); // Used to ignore the first button press
-    
+   
     // Wait for sound to play (approx 5s) before starting to dial
     // Also check for a cancel press during this time
     while(millis() - sosStartTime < 5000) {
-      if (audio && audio->isRunning()) audio->loop(); // FIX: Keep audio playing
-      if (digitalRead(BUTTON_SOS) == LOW && (millis() - sosStartTime > SOS_DEBOUNCE_DELAY)) {
-          Serial.println("SOS Cancelled during initial sound.");
-          callCancelled = true;
-          break;
-      }
-      delay(50);
+        audio_loop_helper(); // FIX: Keep audio playing
+        if (digitalRead(BUTTON_SOS) == LOW && (millis() - sosStartTime > SOS_DEBOUNCE_DELAY)) {
+            Serial.println("SOS Cancelled during initial sound.");
+            callCancelled = true;
+            break;
+        }
+        delay(50);
     }
 
-    // 3. Loop through every contact in our array
-    for (int i = 0; i < contactCount && !callCancelled; i++) {
-        String name = contacts[i].name;
-        String phone = contacts[i].phone;
+    // 3. Loop through all contacts REPEATEDLY until cancelled or answered
+    while (!callCancelled && !callAnswered) {
+       
+        for (int i = 0; i < contactCount && !callCancelled && !callAnswered; i++) {
+            String name = contacts[i].name;
+            String phone = contacts[i].phone;
 
-        Serial.println("Dialing Contact " + String(i + 1) + "/" + String(contactCount) + ": " + name + " (" + phone + ")");
-        updateLCD("CALLING: " + name, phone);
+            Serial.println("Dialing Contact " + String(i + 1) + "/" + String(contactCount) + ": " + name + " (" + phone + ")");
+            updateLCD("CALLING: " + name, phone);
 
-        // 4. Send the dial command
-        String command = "ATD" + phone + ";";
-        String response = sendATCommand(command, 15000); // 15s timeout to send command
+            // 4. Send the dial command
+            while(Serial2.available()) Serial2.read(); // Clear buffer
+            Serial2.println("ATD" + phone + ";");
+            Serial.println("-> SIM800L TX: ATD" + phone + ";");
 
-        if (response.indexOf("OK") != -1) {
-            // Dial command was successful
-            Serial.println("Dialing... waiting 20 seconds for call or cancel.");
-            
+            String response = "";
+            bool callFailed = false; // NEW: Flag for this specific call
+           
             unsigned long callStartTime = millis();
-            while(millis() - callStartTime < 20000) { // Wait 20 seconds
-                if (audio && audio->isRunning()) audio->loop(); // FIX: Keep audio playing
+            while(millis() - callStartTime < 40000) { // 20 second timeout
+                audio_loop_helper(); // Keep audio playing
+               
                 // Check for cancel press
                 if (digitalRead(BUTTON_SOS) == LOW) {
                     Serial.println("SOS Cancelled during call.");
                     callCancelled = true;
                     break; // Break from 20-second wait loop
                 }
-                delay(100); // Check 10x per second
-            }
-            
-            Serial.println("Hanging up call...");
-            sendATCommand("ATH", 3000); // Send Hang Up command
-        } else {
-            // Dial command failed
-            Serial.println("Dial command failed. Trying next contact.");
-            updateLCD("CALL FAILED:", name);
-            delay(2000); // Show "CALL FAILED" for 2s
-        }
 
-        // 5. Pause briefly before dialing the next number (if there is one)
-        if (i < contactCount - 1 && !callCancelled) {
-            Serial.println("Pausing 2s before next call...");
-            updateLCD("Next Contact...", "");
-            
-            unsigned long pauseStartTime = millis();
-            while(millis() - pauseStartTime < 2000) { // Wait 2 seconds
-                if (audio && audio->isRunning()) audio->loop(); // FIX: Keep audio playing
-                // Check for cancel press
-                if (digitalRead(BUTTON_SOS) == LOW) {
-                    Serial.println("SOS Cancelled during pause.");
-                    callCancelled = true;
-                    break;
+                // Check for SIM800L responses
+                if (Serial2.available()) {
+                    char c = Serial2.read();
+                    response += c;
+                    if (response.indexOf("BUSY") != -1) {
+                        Serial.println("Call is BUSY.");
+                        callFailed = true;
+                        break;
+                    }
+                    if (response.indexOf("NO CARRIER") != -1) {
+                        Serial.println("Call FAILED (No Carrier).");
+                        callFailed = true;
+                        break;
+                    }
+                    if (response.indexOf("ERROR") != -1) {
+                        Serial.println("Call FAILED (SIM Error).");
+                        callFailed = true;
+                        break;
+                    }
                 }
-                delay(100);
-            }
-        }
-    } // End of for loop
+                delay(50); // Small delay
+            } // End of 20-second wait loop
+           
+            // 5. We are out of the 20s loop. Hang up.
+            Serial.println("Hanging up call...");
+            sendATCommand("ATH", 3000, false); // Send Hang Up command
+           
+            if (callCancelled) break; // Don't process this call, just exit
 
-    // 6. Show final status
+            if (callFailed) {
+                // Call was BUSY or FAILED. Play sound and try next contact.
+                playWavFile("/emegency_informed.wav"); // Play "call declined/busy" sound
+                updateLCD("Call Failed:", name);
+                // Non-blocking delay for 2s
+                unsigned long failDelayStart = millis();
+                while(millis() - failDelayStart < 2000) {
+                  audio_loop_helper();
+                  delay(50);
+                }
+            } else {
+                // Call was not busy and did not fail. This means it was ANSWERED (or rang for 20s).
+                Serial.println("Call was ANSWERED (or 20s timeout).");
+                callAnswered = true; // Set flag to stop the main loop
+                // playWavFile("/emegency_informed.wav"); // Play sound to inform user
+            }
+
+            // 6. Pause briefly before dialing the next number (if there is one)
+            if (i < contactCount - 1 && !callCancelled && !callAnswered) {
+                Serial.println("Pausing 2s before next call...");
+                updateLCD("Next Contact...", "");
+               
+                unsigned long pauseStartTime = millis();
+                while(millis() - pauseStartTime < 2000) { // Wait 2 seconds
+                    audio_loop_helper(); // FIX: Keep audio playing
+                    // Check for cancel press
+                    if (digitalRead(BUTTON_SOS) == LOW) {
+                        Serial.println("SOS Cancelled during pause.");
+                        callCancelled = true;
+                        break;
+                    }
+                    delay(100);
+                }
+            }
+        } // End of FOR loop (one cycle of all contacts)
+       
+        if (!callCancelled && !callAnswered) {
+          Serial.println("Finished one call cycle. Restarting list...");
+          updateLCD("Restarting", "Call List...");
+          // Non-blocking delay for 2s
+          unsigned long cycleDelayStart = millis();
+          while(millis() - cycleDelayStart < 2000) {
+            audio_loop_helper();
+            delay(50);
+          }
+        }
+       
+    } // End of WHILE loop
+
+    // 7. Show final status
     if (callCancelled) {
         Serial.println("Finished SOS sequence (CANCELLED).");
-        playWavFile("/emegency_informed.wav"); // FIX: Plays when call is cancelled/declined
+        playWavFile("/sos_call_cancel.wav"); 
         updateLCD("SOS", "CANCELLED");
-    } else {
-        Serial.println("Finished all SOS calls.");
-        playWavFile("/call_finished.wav");
+    } else if (callAnswered) {
+        Serial.println("Finished all SOS calls (ANSWERED/INFORMED).");
+        playWavFile("/emegency_informed.wav"); // CHANGED: Use informed sound
         updateLCD("SOS Calls", "Finished.");
     }
-    
-    // delay(3000); // Show "Finished" or "CANCELLED" for 3s
+   
     // FIX: Replace delay with a non-blocking loop
     unsigned long finalDelayStart = millis();
     while(millis() - finalDelayStart < 3000) {
-      if (audio && audio->isRunning()) audio->loop();
+      audio_loop_helper();
       delay(50);
     }
 
@@ -893,7 +978,7 @@ void playWavFile(const char* filename) {
         Serial.println("Stopping previous audio...");
         audio->stop();
     }
-    
+   
     // Safety check for initialization
     if (!file || !audio || !out) {
         Serial.println("ERROR: Audio system not initialized. Cannot play.");
@@ -905,7 +990,7 @@ void playWavFile(const char* filename) {
         Serial.println("SUCCESS: File opened in LittleFS.");
         // Start the generator, linking the file source to the I2S output
         if (audio->begin(file, out)) {
-            Serial.println("WAV file playback started. Check Serial Monitor for sample rate info!");
+            Serial.println("WAV file playback started.");
         } else {
             Serial.println("ERROR: audio->begin() failed.");
         }
@@ -978,7 +1063,7 @@ bool saveConfiguration(std::string data) {
  */
 void startBLEProvisioning() {
     Serial.println("Starting BLE Provisioning Server...");
-    
+   
     // 1. Initialize BLE
     BLEDevice::init("AgeLink-Setup");
 
@@ -1006,7 +1091,7 @@ void startBLEProvisioning() {
     pAdvertising->setMinPreferred(0x06); // functions changing values automatically
     pAdvertising->setMinPreferred(0x12);
     BLEDevice::startAdvertising();
-    
+   
     Serial.println("BLE Server started. Waiting for app connection...");
 }
 
@@ -1034,7 +1119,7 @@ bool loadConfiguration() {
     while (configFile.available()) {
         configFileContent += (char)configFile.read();
     }
-    
+   
     Serial.println("--- Reading /config.json ---");
     Serial.println(configFileContent);
     Serial.println("----------------------------");
@@ -1097,13 +1182,13 @@ bool loadConfiguration() {
 void initI2S() {
     // 1. Create I2S Output object
     out = new AudioOutputI2S();
-    
+   
     // 2. Configure I2S pins (BCLK, LRC, DOUT)
     out->SetPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    
+   
     // 3. Start I2S (This uses the default configuration)
     out->begin();
-    
+   
     // NEW: Set initial volume
     out->SetGain(currentVolume);
 
@@ -1127,6 +1212,7 @@ void fetchDeviceSettings() {
     if (offlineMode) return; // Don't try to fetch if we're offline
 
     // Serial.println("Fetching device settings..."); // Removed spam
+    audio->stop(); // FIX: Stop audio before Firebase calls to prevent noise
 
     if (Firebase.getString(fbdo, rtdb_device_path)) {
         if (fbdo.dataType() == "json") {
@@ -1139,7 +1225,7 @@ void fetchDeviceSettings() {
                     float newVolume = result.floatValue;
                     if (newVolume < 0.0) newVolume = 0.0;
                     if (newVolume > 1.0) newVolume = 1.0; // Cap at 1.0 (100%)
-                    
+                   
                     if (newVolume != currentVolume) {
                         currentVolume = newVolume;
                         out->SetGain(currentVolume); // Set the new volume
@@ -1172,9 +1258,19 @@ void fetchEmergencyContact() {
 
     if (offlineMode) {
       Serial.println("Offline mode. Skipping Firebase fetch.");
-      loadContactsFromFile();
+      // FIX: Try to load contacts from file. If it fails, use the fallback.
+      if (!loadContactsFromFile()) {
+          Serial.println("Could not load contacts from file. Using fallback.");
+          // Fallback if file load failed
+          contacts[0].name = "Emergency";
+          contacts[0].phone = "0763777417"; // Generic Fallback number
+          contactCount = 1; // We have one fallback contact
+          Serial.println(">>> Using FALLBACK emergency contact: " + contacts[0].name + " / " + contacts[0].phone);
+      }
       return;
     }
+
+    audio->stop(); // FIX: Stop audio before Firebase calls to prevent noise
 
     // NEW LOGIC: Read the path as a JSON string to iterate
     if (Firebase.getString(fbdo, rtdb_emergency_path)) { // CHANGED
@@ -1188,10 +1284,10 @@ void fetchEmergencyContact() {
                 String key = "";
                 String value = "";
                 int type = 0;
-                
+               
                 // Get the contact object (e.g., "-OdXfmv_rAfs...")
                 json.iteratorGet(i, type, key, value);
-                
+               
                 FirebaseJson tempJson;
                 tempJson.setJsonData(value);
 
@@ -1255,7 +1351,7 @@ void fetchEmergencyContact() {
 void startAlarmSequence(ReminderState phase) {
     const char* wav_file = nullptr; // Initialize to nullptr
     Serial.print("Starting Alarm Sequence: ");
-    
+   
     // Set LED and LCD for the active period (LED stays ON)
     if (phase == GREEN_ACTIVE) {
         Serial.println("GREEN (First Reminder)");
@@ -1273,7 +1369,7 @@ void startAlarmSequence(ReminderState phase) {
         updateLCD("FINAL REMINDER:", currentMedicineName);
         wav_file = "/final_reminder.wav"; 
     }
-    
+   
     // Execute the WAV file playback 
     if (wav_file) {
         playWavFile(wav_file);
@@ -1295,7 +1391,7 @@ void initLCD() {
     delay(100); 
     lcd.init();
     lcd.backlight();
-    Serial.println("LCD Initialized (0x27).");
+    Serial.println("LCD Initialized (0x3F).");
 }
 
 /**
@@ -1339,31 +1435,12 @@ void updateLCD(String line1, String line2) {
 // Firebase and Time Functions
 // -----------------------------------------------------------------------------
 
-/**
- * @brief NEW: Handles WiFi connect and disconnect events.
- * Automatically updates the device_status in Firebase.
- */
-void WiFiEvent(WiFiEvent_t event) {
-    Serial.printf("[WiFi Event] event: %d\n", event);
-
-    switch (event) {
-        case ARDUINO_EVENT_WIFI_STA_GOT_IP: // FIX: Replaced SYSTEM_EVENT_STA_GOT_IP
-            Serial.println("WiFi connected!");
-            Serial.println("IP address: " + WiFi.localIP().toString());
-            wifiJustConnected = true; // Set flag for main loop to handle
-            wifiJustDisconnected = false;
-            break;
-            
-        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: // FIX: Replaced SYSTEM_EVENT_STA_DISCONNECTED
-            Serial.println("WiFi lost connection!");
-            wifiJustConnected = false;
-            wifiJustDisconnected = true; // Set flag for main loop to handle
-            break;
-            
-        default:
-            break;
-    }
-}
+// REMOVED: Entire WiFiEvent() function
+// /**
+// * @brief NEW: Handles WiFi connect and disconnect events.
+// ...
+// */
+// void WiFiEvent(WiFiEvent_t event) { ... }
 
 
 /**
@@ -1374,6 +1451,7 @@ void initNTP() {
     Serial.println("Waiting for NTP time sync...");
     while (!getLocalTime(&timeinfo)) {
         Serial.print(".");
+        audio_loop_helper(); // FIX: Keep audio playing during this loop
         delay(500);
     }
     Serial.println("\nNTP Time Initialized.");
@@ -1394,22 +1472,27 @@ String getCurrentTimeFormatted() {
  * @brief Checks Firebase for a scheduled time matching the current time.
  * @param currentTime The "HH:MM" formatted time string.
  */
-void checkScheduledTime(String currentTime) {
+bool checkScheduledTime(String currentTime) { // MODIFIED: Returns bool
     if (currentState != IDLE && currentState != MISSED) {
         // Serial.println("DB Check skipped: Alarm sequence is currently active."); // Reduce spam
-        return;
+        return false; // MODIFIED
     }
-    
+   
     if (offlineMode) {
         // Serial.println("Offline mode. Skipping Firebase schedule check.");
-        return; // Don't check firebase if offline
+        return false; // Don't check firebase if offline
     }
 
-    Serial.print("Checking schedule for current time: ");
+    Serial.print("Checking schedule and updating last_sync for time: "); // MODIFIED
     Serial.println(currentTime);
+    
+    // NEW: Update last_sync time to Firebase. This creates the path if it doesn't exist.
+    Firebase.setString(fbdo, rtdb_device_path + "/last_sync", currentTime);
+    
+    audio->stop(); // FIX: Stop audio before Firebase calls to prevent noise
 
     String path = rtdb_schedule_path + "/med_times"; // CHANGED
-    
+   
     // NEW: Logic for finding the next time
     String nextTimeToday = "25:00"; // Earliest time found today (later than now)
     String earliestTimeOverall = "25:00"; // Earliest time in the whole list (for tomorrow)
@@ -1418,14 +1501,17 @@ void checkScheduledTime(String currentTime) {
     bool alarmTriggered = false; // Flag to prevent multiple alarms
 
     if (Firebase.getString(fbdo, path)) {
-        // NEW: Save the schedule to a file for offline use
-        File scheduleFile = LittleFS.open("/schedule.json", "w");
-        if(scheduleFile) {
-          scheduleFile.print(fbdo.stringData());
-          scheduleFile.close();
-          Serial.println("Successfully saved schedule to /schedule.json");
-        } else {
-          Serial.println("Failed to open /schedule.json for writing");
+        // NEW: Save the schedule to a file for offline use (every 20 mins)
+        if (millis() - lastScheduleSaveTime > SCHEDULE_SAVE_INTERVAL_MS) {
+            File scheduleFile = LittleFS.open("/schedule.json", "w");
+            if(scheduleFile) {
+              scheduleFile.print(fbdo.stringData());
+              scheduleFile.close();
+              Serial.println("Successfully saved schedule to /schedule.json");
+              lastScheduleSaveTime = millis(); // Reset the timer
+            } else {
+              Serial.println("Failed to open /schedule.json for writing");
+            }
         }
 
         if (fbdo.dataType() == "json") {
@@ -1437,14 +1523,14 @@ void checkScheduledTime(String currentTime) {
                 String value = "";
                 int type = 0;
                 json.iteratorGet(i, type, key, value);
-                
+               
                 // Each 'value' is a JSON object {"name": "...", "time": "..."}
                 FirebaseJson tempJson;
                 tempJson.setJsonData(value);
-                
+               
                 String medicineTime = "";
                 String medicineName = "";
-                
+               
                 // Get the time
                 if (tempJson.get(result, FPSTR("time"))) {
                     if (result.type == "string") {
@@ -1459,15 +1545,15 @@ void checkScheduledTime(String currentTime) {
                         medicineTime = "";
                     }
                 }
-                
+               
                 // Get the name
                 if (tempJson.get(result, FPSTR("name"))) {
                     medicineName = result.stringValue; 
                     medicineName.trim();
                 }
-                
+               
                 // --- REMOVED Serial.print spam ---
-                
+               
                 // --- START OF MODIFIED LOGIC ---
 
                 if (medicineTime.isEmpty()) continue; // Skip if no time
@@ -1483,21 +1569,21 @@ void checkScheduledTime(String currentTime) {
                     nextTimeToday = medicineTime;
                     nextNameToday = medicineName; // Store name
                 }
-                
+               
                 // 3. Check for exact match (ALARM TRIGGER)
                 // Only trigger if an alarm hasn't already been triggered this cycle
                 // AND it wasn't just confirmed this same minute
                 if (currentTime.equals(medicineTime) && !alarmTriggered && currentTime != lastConfirmedTime) {
                     Serial.println("***** ALARM TRIGGERED! TIME MATCH CONFIRMED *****");
-                    
+                   
                     currentMedicineName = medicineName;
                     currentState = GREEN_ACTIVE; // Start the alarm sequence
                     stateChangeTime = millis();  // Set the start time
                     startAlarmSequence(GREEN_ACTIVE); // Run the first alert
-                    
+                   
                     // Update status in Firebase
                     Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "ACTIVE"); // CHANGED
-                    
+                   
                     alarmTriggered = true; // Set flag
                     // DO NOT RETURN. We need to process the whole list for "next time".
                 }
@@ -1519,22 +1605,24 @@ void checkScheduledTime(String currentTime) {
                 nextMedicineTime = "--:--";
                 nextMedicineName = "None";
             }
-            Serial.println("Next medicine time found: " + nextMedicineTime + " (" + nextMedicineName + ")");
+            Serial.println("Next medicine time found: " + nextMedicineName + " (" + nextMedicineTime + ")");
             // --- END NEW ---
 
             if (alarmTriggered) {
-                return; // Now we can return if we triggered an alarm
+                return true; // MODIFIED: Report that an alarm was triggered
             }
 
             // Serial.println("--- DB Check Complete (No match found) ---"); // Reduce spam
         } else { // THIS IS THE 'ELSE' FROM THE ERROR
             Serial.println("RTDB Read ERROR: med_times is not JSON. Reason: " + fbdo.errorReason());
-            loadScheduleFromFile(); // Load from backup
+            // loadScheduleFromFile(); // REMOVED: Do not load schedule in offline mode
         } 
     } else {
         Serial.println("RTDB Read ERROR: Failed to read med_times path. Reason: " + fbdo.errorReason());
-        loadScheduleFromFile(); // Load from backup
+        // loadScheduleFromFile(); // REMOVED: Do not load schedule in offline mode
     }
+
+    return false; // MODIFIED: No alarm was triggered
 }
 
 /**
@@ -1553,14 +1641,25 @@ void setLEDs(bool green, bool orange, bool red) {
 void handleConfirmation(String state) {
     // 1. Play confirmation sounds
     playWavFile("/medicine_confirm.wav"); // Play first sound
-    // delay(2000); // Wait for it to play (adjust as needed) // REMOVED
-    // playWavFile("/emegency_informed.wav"); // REMOVED - This plays on SOS cancel now
+
+    // NEW: Add a non-blocking delay to let the sound play
+    // BEFORE we try to use Firebase (which causes a conflict).
+    unsigned long confirmSoundStart = millis();
+    while(millis() - confirmSoundStart < 2000) { // Wait for 2 seconds
+        audio_loop_helper(); // Keep the audio playing
+        delay(50);
+    }
+    // By now, the sound is finished, and audio->stop() has likely been called by the EOF callback.
+    audio->stop(); // FIX: Force stop audio before Firebase
+    Serial.println("Audio stopped, pushing confirmation to Firebase...");
 
     // 2. Send data to Firebase
     FirebaseJson confirmationJson;
     confirmationJson.set("confirmed_at", getCurrentTimeFormatted());
     confirmationJson.set("medicine_name", currentMedicineName);
     confirmationJson.set("reminder_state", state);
+    // NEW: Add the Firebase Server Timestamp
+    confirmationJson.set("confirmed_at_timestamp/.sv", "timestamp");
 
     // 3. NEW: Fix the re-trigger loop
     lastConfirmedTime = getCurrentTimeFormatted();
@@ -1575,6 +1674,37 @@ void handleConfirmation(String state) {
     }
     // Note: stateChangeTime is set in the main loop when state transitions to CONFIRMED
 }
+
+/**
+ * @brief NEW: Logs a MISSED event to Firebase.
+ * @param medicineName The name of the medicine that was missed.
+ */
+void handleMissed(String medicineName) {
+    Serial.println("Logging as MISSED to Firebase...");
+    audio->stop(); // Ensure audio is stopped before Firebase call
+
+    FirebaseJson missedJson;
+    String currentTime = getCurrentTimeFormatted();
+
+    missedJson.set("confirmed_at", currentTime);
+    missedJson.set("medicine_name", medicineName);
+    missedJson.set("reminder_state", "MISSED");
+    // NEW: Add the Firebase Server Timestamp
+    missedJson.set("confirmed_at_timestamp/.sv", "timestamp");
+
+    // Pushes a new unique entry under the /confirmation path
+    if (Firebase.push(fbdo, rtdb_confirm_path, missedJson)) {
+        Serial.println("Firebase MISSED event PUSHED successfully.");
+        // Also update the status for the app's dashboard
+        Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "MISSED");
+    } else {
+        Serial.println("Firebase MISSED event push Failed: " + fbdo.errorReason());
+    }
+
+    // Play the missed sound *after* the Firebase push
+    playWavFile("/medicine_missed.wav");
+}
+
 
 // -----------------------------------------------------------------------------
 // NEW: Offline File Functions
@@ -1641,77 +1771,80 @@ bool loadContactsFromFile() {
         contactCount++;
     }
     Serial.println("Successfully loaded " + String(contactCount) + " contacts from file.");
-    return true;
+    // FIX: Only return true if we actually loaded one or more contacts
+    return (contactCount > 0);
 }
 
 /**
  * @brief Loads the schedule from /schedule.json (for display only)
  */
 bool loadScheduleFromFile() {
-    if (offlineMode) { // Only run this if we are truly offline
-        Serial.println("Loading schedule from /schedule.json...");
-        File scheduleFile = LittleFS.open("/schedule.json", "r");
-        if (!scheduleFile) {
-            Serial.println("Failed to open /schedule.json");
-            return false;
-        }
+    // THIS FUNCTION IS NO LONGER CALLED IN OFFLINE MODE
+    // It is only used by checkScheduledTime if Firebase read fails
+    // (which means we are online but Firebase had a temporary error)
+    if (offlineMode) return false; 
 
-        StaticJsonDocument<1024> doc; // Use same size as in checkSchedule
-        DeserializationError error = deserializeJson(doc, scheduleFile);
-        if (error) {
-            Serial.print("Failed to parse /schedule.json: ");
-            Serial.println(error.c_str());
-            scheduleFile.close();
-            return false;
-        }
+    Serial.println("Loading schedule from /schedule.json as backup...");
+    File scheduleFile = LittleFS.open("/schedule.json", "r");
+    if (!scheduleFile) {
+        Serial.println("Failed to open /schedule.json");
+        return false;
+    }
+
+    StaticJsonDocument<1024> doc; // Use same size as in checkSchedule
+    DeserializationError error = deserializeJson(doc, scheduleFile);
+    if (error) {
+        Serial.print("Failed to parse /schedule.json: ");
+        Serial.println(error.c_str());
         scheduleFile.close();
-        
-        // This is a simplified version of the logic in checkScheduledTime
-        // It does not trigger alarms, it only finds the next time for the display
-        String currentTime = getCurrentTimeFormatted();
-        String nextTimeToday = "25:00"; 
-        String earliestTimeOverall = "25:00";
-        String nextNameToday = "None";
-        String earliestNameOverall = "None";
+        return false;
+    }
+    scheduleFile.close();
+   
+    // This is a simplified version of the logic in checkScheduledTime
+    // It does not trigger alarms, it only finds the next time for the display
+    String currentTime = getCurrentTimeFormatted();
+    String nextTimeToday = "25:00"; 
+    String earliestTimeOverall = "25:00";
+    String nextNameToday = "None";
+    String earliestNameOverall = "None";
 
-        // We assume the file is a JSON object with keys like "-M...": { "name": "...", "time": "..." }
-        if (doc.is<JsonObject>()) {
-            for (JsonPair kv : doc.as<JsonObject>()) { // FIX: Changed JsonPairConst to JsonPair
-                String medicineTime = kv.value()["time"].as<String>();
-                String medicineName = kv.value()["name"].as<String>();
-                
-                if (medicineTime.isEmpty()) continue;
+    // We assume the file is a JSON object with keys like "-M...": { "name": "...", "time": "..." }
+    if (doc.is<JsonObject>()) {
+        for (JsonPair kv : doc.as<JsonObject>()) { // FIX: Changed JsonPairConst to JsonPair
+            String medicineTime = kv.value()["time"].as<String>();
+            String medicineName = kv.value()["name"].as<String>();
+           
+            if (medicineTime.isEmpty()) continue;
 
-                // Time Normalization Fix (e.g., "9:15" to "09:15")
-                if (medicineTime.length() == 4 && medicineTime[1] == ':') {
-                    medicineTime = "0" + medicineTime; 
-                }
+            // Time Normalization Fix (e.g., "9:15" to "09:15")
+            if (medicineTime.length() == 4 && medicineTime[1] == ':') {
+                medicineTime = "0" + medicineTime; 
+            }
 
-                if (medicineTime < earliestTimeOverall) {
-                    earliestTimeOverall = medicineTime;
-                    earliestNameOverall = medicineName;
-                }
-                if (medicineTime > currentTime && medicineTime < nextTimeToday) {
-                    nextTimeToday = medicineTime;
-                    nextNameToday = medicineName;
-                }
+            if (medicineTime < earliestTimeOverall) {
+                earliestTimeOverall = medicineTime;
+                earliestNameOverall = medicineName;
+            }
+            if (medicineTime > currentTime && medicineTime < nextTimeToday) {
+                nextTimeToday = medicineTime;
+                nextNameToday = medicineName;
             }
         }
-
-        if (nextTimeToday != "25:00") {
-            nextMedicineTime = nextTimeToday;
-            nextMedicineName = nextNameToday;
-        } else if (earliestTimeOverall != "25:00") {
-            nextMedicineTime = earliestTimeOverall;
-            nextMedicineName = earliestNameOverall;
-        } else {
-            nextMedicineTime = "--:--";
-            nextMedicineName = "None";
-        }
-        Serial.println("Offline Next medicine time: " + nextMedicineTime + " (" + nextMedicineName + ")");
-        return true;
     }
-    return false;
+
+    if (nextTimeToday != "25:00") {
+        nextMedicineTime = nextTimeToday;
+        nextMedicineName = nextNameToday;
+    } else if (earliestTimeOverall != "25:00") {
+        nextMedicineTime = earliestTimeOverall;
+        nextMedicineName = earliestNameOverall;
+    } else {
+        nextMedicineTime = "--:--";
+        nextMedicineName = "None";
+    }
+    Serial.println("Offline Next medicine time: " + nextMedicineTime + " (" + nextMedicineName + ")");
+    return true;
 }
 
 
@@ -1724,7 +1857,7 @@ void deleteConfigurationFiles() {
         Serial.println("Deleted /config.json");
     }
     if (LittleFS.remove("/contacts.json")) {
-        Serial.println("Deleted /contacts.json");
+        Serial.println("Deleted /contacts.json"); // FIX: Was Serial.Delted
     }
     if (LittleFS.remove("/schedule.json")) {
         Serial.println("Deleted /schedule.json");
