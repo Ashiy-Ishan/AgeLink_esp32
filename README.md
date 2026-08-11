@@ -1,4 +1,4 @@
-# AgeLink 🧓🔗 - Hardware & Firmware
+# AgeLink 🔗 - Hardware & Firmware
 **Empowering independent elderly living through voice-assisted IoT.**
 
 **Team:** Team XTurbo  
@@ -68,4 +68,4 @@ The AgeLink hardware acts as the physical touchpoint for the elderly user.
 ---
 
 ## 🎥 Demonstration Video Link
-**[Insert YouTube / Drive Link to your 360° Hardware Demo Video Here]**
+**https://youtu.be/Dg8cj1AjC2k**
