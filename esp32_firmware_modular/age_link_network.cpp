@@ -51,7 +51,7 @@ void handleWiFiReconnect() {
 
             if (!loadContactsFromFile()) {
                 contacts[0].name  = "Emergency";
-                contacts[0].phone = "0763777417";
+                contacts[0].phone = "0759428249";
                 contactCount      = 1;
                 Serial.println(F("[WIFI] Using FALLBACK emergency contact in offline mode."));
             }
