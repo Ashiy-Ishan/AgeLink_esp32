@@ -52,7 +52,6 @@ class DoseNotification {
   }
 }
 
-// Notification Page Widget
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
 
@@ -77,7 +76,6 @@ class _NotificationPageState extends State<NotificationPage> {
     }
   }
 
-  // Improved date formatting helper
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -93,10 +91,9 @@ class _NotificationPageState extends State<NotificationPage> {
     }
   }
 
-  // Premium Date Header
   Widget _buildDateHeader(DateTime date) {
     return Padding(
-      padding: const EdgeInsets.only(top: 24.0, bottom: 16.0),
+      padding: const EdgeInsets.only(top: 24.0, bottom: 20.0),
       child: Row(
         children: [
           Expanded(
@@ -148,7 +145,6 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
-  // Premium Empty State
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
@@ -260,13 +256,13 @@ class _NotificationPageState extends State<NotificationPage> {
 
           return ListView.builder(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
             itemCount: alerts.length,
             itemBuilder: (context, index) {
               final notification = alerts[index];
               final DateTime currentDoseDate = DateTime(notification.date.year, notification.date.month, notification.date.day);
 
-              // Check if this item should display a date header
+              // 1. Determine if we need to show the Date Header
               bool showDateHeader = true;
               if (index > 0) {
                 final previousNotification = alerts[index - 1];
@@ -277,8 +273,20 @@ class _NotificationPageState extends State<NotificationPage> {
                 }
               }
 
+              // 2. Determine if this is the LAST item of the current day (to stop the horizontal divider)
+              bool isLastOfDay = false;
+              if (index < alerts.length - 1) {
+                final nextNotification = alerts[index + 1];
+                final DateTime nextDoseDate = DateTime(nextNotification.date.year, nextNotification.date.month, nextNotification.date.day);
+                if (!currentDoseDate.isAtSameMomentAs(nextDoseDate)) {
+                  isLastOfDay = true;
+                }
+              } else {
+                isLastOfDay = true; // Absolute last item in the list
+              }
+
               final Color statusColor = notification.isTaken ? const Color(0xFF4CAF50) : Colors.redAccent;
-              final Color bgColor = notification.isTaken ? const Color(0xFF4CAF50).withValues(alpha: 0.08) : Colors.redAccent.withValues(alpha: 0.08);
+              final Color bgColor = notification.isTaken ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : Colors.redAccent.withValues(alpha: 0.1);
               final IconData statusIcon = notification.isTaken ? Icons.check_circle_rounded : Icons.cancel_rounded;
               final String statusText = notification.isTaken ? 'Taken (${notification.reminderState})' : 'Missed';
 
@@ -287,9 +295,8 @@ class _NotificationPageState extends State<NotificationPage> {
                 children: [
                   if (showDateHeader) _buildDateHeader(notification.date),
 
-                  // Notification Card
+                  // --- White Card for Notification ---
                   Container(
-                    margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -299,29 +306,24 @@ class _NotificationPageState extends State<NotificationPage> {
                           color: Colors.black.withValues(alpha: 0.03),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
-                        )
+                        ),
                       ],
-                      border: Border.all(color: Colors.grey.shade100, width: 1.5),
                     ),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Icon Badge
+                        // Left Icon
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             color: bgColor,
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(
-                            statusIcon,
-                            color: statusColor,
-                            size: 24,
-                          ),
+                          child: Icon(statusIcon, color: statusColor, size: 24),
                         ),
                         const SizedBox(width: 16),
 
-                        // Details
+                        // Medication Details
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,7 +332,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                 notification.medicationName,
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                                  fontSize: 17,
                                   color: Constants.darkGrey,
                                 ),
                               ),
@@ -347,32 +349,33 @@ class _NotificationPageState extends State<NotificationPage> {
                           ),
                         ),
 
-                        // Time Pill
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.access_time_rounded, size: 14, color: Constants.mediumGrey),
-                              const SizedBox(width: 4),
-                              Text(
-                                notification.time,
-                                style: TextStyle(
-                                  color: Constants.darkGrey,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
+                        // Right Time
+                        Text(
+                          notification.time,
+                          style: TextStyle(
+                            color: Constants.mediumGrey,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
                           ),
                         ),
                       ],
                     ),
                   ),
+
+                  // --- Single Horizontal Divider Between Cards ---
+                  if (!isLastOfDay)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                      child: Divider(
+                        color: Colors.grey.shade300,
+                        thickness: 1,
+                        height: 1,
+                      ),
+                    ),
+
+                  // Add bottom spacing at the end of the day group
+                  if (isLastOfDay)
+                    const SizedBox(height: 16),
                 ],
               );
             },

@@ -118,22 +118,19 @@ class AppMenuDrawer extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // --- CHANGED TO LOGO ---
                     Image.asset(
                       'assets/agelink_logo.png',
                       height: 32, // Adjust this height if needed
                       fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => Text(
+                      errorBuilder: (context, error, stackTrace) => const Text(
                         'AgeLink', // Fallback if image path is wrong
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF0D47A1),
+                          color: Color(0xFF0D47A1),
                         ),
                       ),
                     ),
-                    // --- END OF LOGO ---
-
                     IconButton(
                       icon: Container(
                         padding: const EdgeInsets.all(6),
@@ -149,7 +146,7 @@ class AppMenuDrawer extends StatelessWidget {
                 ),
               ),
 
-              // 2. Profile Card StreamBuilder
+              // 2. Profile Card StreamBuilder (UPDATED TO MODERN LIGHT UI)
               StreamBuilder<DocumentSnapshot>(
                 stream: userDocRef.snapshots(),
                 builder: (context, snapshot) {
@@ -175,17 +172,14 @@ class AppMenuDrawer extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(20.0),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [const Color(0xFF1E88E5), const Color(0xFF0D47A1)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.grey.shade200, width: 1.5),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF0D47A1).withValues(alpha: 0.3),
+                            color: Colors.black.withValues(alpha: 0.03),
                             blurRadius: 15,
-                            offset: const Offset(0, 8),
+                            offset: const Offset(0, 5),
                           ),
                         ],
                       ),
@@ -198,17 +192,18 @@ class AppMenuDrawer extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(3),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
+                                  color: Colors.white,
                                   shape: BoxShape.circle,
+                                  border: Border.all(color: const Color(0xFF1E88E5).withValues(alpha: 0.2), width: 2),
                                 ),
                                 child: CircleAvatar(
-                                  radius: 30,
-                                  backgroundColor: Colors.white,
+                                  radius: 28,
+                                  backgroundColor: const Color(0xFF1E88E5).withValues(alpha: 0.1),
                                   backgroundImage: (profileImageUrl != null && profileImageUrl.isNotEmpty)
                                       ? NetworkImage(profileImageUrl)
                                       : null,
                                   child: (profileImageUrl == null || profileImageUrl.isEmpty)
-                                      ? const Icon(Icons.person_rounded, size: 34, color: Color(0xFF0D47A1))
+                                      ? const Icon(Icons.person_rounded, size: 32, color: Color(0xFF1E88E5))
                                       : null,
                                 ),
                               ),
@@ -219,10 +214,10 @@ class AppMenuDrawer extends StatelessWidget {
                                   children: [
                                     Text(
                                       name,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 20,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                        color: Constants.darkGrey,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -232,7 +227,8 @@ class AppMenuDrawer extends StatelessWidget {
                                       email,
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: Colors.white.withValues(alpha: 0.8),
+                                        color: Constants.mediumGrey,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -247,15 +243,16 @@ class AppMenuDrawer extends StatelessWidget {
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               onPressed: () => _navigateTo(context, const EditProfilePage()),
-                              icon: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF0D47A1)),
+                              icon: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF1E88E5)),
                               label: const Text(
                                 'Edit Profile',
-                                style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
+                                style: TextStyle(color: Color(0xFF1E88E5), fontWeight: FontWeight.bold),
                               ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: const Color(0xFF0D47A1),
+                                backgroundColor: const Color(0xFF1E88E5).withValues(alpha: 0.1),
+                                foregroundColor: const Color(0xFF1E88E5),
                                 elevation: 0,
+                                shadowColor: Colors.transparent,
                                 padding: const EdgeInsets.symmetric(vertical: 10),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),

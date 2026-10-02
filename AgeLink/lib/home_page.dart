@@ -17,9 +17,9 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
   static const List<Widget> _pages = <Widget>[
-    HomeScreen(),       // Index 0
+    HomeScreen(),                 // Index 0
     MedicationSchedulePage(),     // Index 1
-    NotificationPage(), // Index 2
+    NotificationPage(),           // Index 2
   ];
 
   void _onItemTapped(int index, BuildContext context) {
@@ -60,14 +60,25 @@ class _HomePageState extends State<HomePage> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              backgroundColor: Constants.lightBlue,
-              radius: 20,
-              child: Icon(
-                Icons.person,
-                color: Constants.darkblue,
-                size: 24,
-              ),
+            // --- Wrapped in a Builder to get the Scaffold context ---
+            child: Builder(
+                builder: (context) {
+                  return GestureDetector(
+                    onTap: () {
+                      // Opens the drawer instead of navigating to a new page
+                      Scaffold.of(context).openEndDrawer();
+                    },
+                    child: CircleAvatar(
+                      backgroundColor: Constants.lightBlue,
+                      radius: 20,
+                      child: Icon(
+                        Icons.person,
+                        color: Constants.darkblue,
+                        size: 24,
+                      ),
+                    ),
+                  );
+                }
             ),
           ),
         ],
@@ -79,40 +90,46 @@ class _HomePageState extends State<HomePage> {
       ),
 
       bottomNavigationBar: Builder(
-          builder: (context) {
-            return BottomNavigationBar(
+        builder: (context) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              splashColor: Colors.transparent,
+              highlightColor: Colors.grey,
+            ),
+            child: BottomNavigationBar(
               backgroundColor: Colors.white,
               elevation: 0,
               selectedItemColor: Constants.darkblue,
               unselectedItemColor: Constants.mediumGrey,
+              // Locks font sizes so the icons don't jump/shift during selection
+              selectedFontSize: 12.0,
+              unselectedFontSize: 12.0,
+
               currentIndex: _selectedIndex,
               onTap: (index) => _onItemTapped(index, context),
               type: BottomNavigationBarType.fixed,
 
               items: const <BottomNavigationBarItem>[
-                // Home
                 BottomNavigationBarItem(
                   icon: Icon(Icons.home),
                   label: 'Home',
                 ),
-                // Schedule
                 BottomNavigationBarItem(
                   icon: Icon(Icons.calendar_month),
                   label: 'Schedule',
                 ),
-                // Notification
                 BottomNavigationBarItem(
                   icon: Icon(Icons.notifications),
                   label: 'Notification',
                 ),
-                // Menu
                 BottomNavigationBarItem(
                   icon: Icon(Icons.menu),
                   label: 'Menu',
                 ),
               ],
-            );
-          }
+            ),
+          );
+        },
       ),
     );
   }
