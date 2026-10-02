@@ -2,13 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
-import 'edit_full_schedule_page.dart'; // Make sure you created this file from the previous step
+import 'edit_full_schedule_page.dart';
 
 class ScheduleDetailsPage extends StatelessWidget {
-  final String scheduleId; // <-- DEFINED HERE
+  final String scheduleId;
   final String scheduleName;
   final Timestamp? createdAt;
   final bool isActive;
@@ -16,17 +15,12 @@ class ScheduleDetailsPage extends StatelessWidget {
 
   const ScheduleDetailsPage({
     super.key,
-    required this.scheduleId, // <-- ADDED TO CONSTRUCTOR
+    required this.scheduleId,
     required this.scheduleName,
     required this.createdAt,
     required this.isActive,
     required this.medications,
   });
-
-  String _formatTimestamp(Timestamp? timestamp) {
-    if (timestamp == null) return 'Unknown Date';
-    return DateFormat('MMMM d, yyyy • h:mm a').format(timestamp.toDate());
-  }
 
   String _formatTime12h(String time24h) {
     try {
@@ -43,7 +37,6 @@ class ScheduleDetailsPage extends StatelessWidget {
   }
 
   void _navigateToEditSchedule(BuildContext context) {
-    // Navigates to the Edit Page passing all current data
     Navigator.push(
         context,
         MaterialPageRoute(
@@ -57,100 +50,76 @@ class ScheduleDetailsPage extends StatelessWidget {
     );
   }
 
-  // --- MODERN UI: Fluid Timeline Row (Zero Boxes) ---
-  Widget _buildTimelineMedRow(Map<String, dynamic> med, bool isLast, BuildContext context) {
+  // --- SIMPLE UI: Clean Medication Card ---
+  Widget _buildMedicationRow(Map<String, dynamic> med) {
     final name = med['name'] ?? 'Unknown';
     final dosage = med['dosage'] ?? 'N/A';
     final time = med['time'] ?? '00:00';
 
-    return IntrinsicHeight(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Left Side: Time
-          SizedBox(
-            width: 75,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  _formatTime12h(time),
-                  style: const TextStyle(
-                    color: Color(0xFF1E88E5),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                  textAlign: TextAlign.right,
-                ),
-              ],
+          // Time Block
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              _formatTime12h(time),
+              style: TextStyle(
+                color: Constants.darkGrey,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
             ),
           ),
           const SizedBox(width: 16),
 
-          // Timeline Node & Line
-          Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFF1E88E5), width: 3.5),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF1E88E5).withValues(alpha: 0.4),
-                        blurRadius: 8,
-                      )
-                    ]
-                ),
-              ),
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: const Color(0xFF1E88E5).withValues(alpha: 0.2),
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 16),
-
-          // Right Side: Medication Content
+          // Medication Details
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 32.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 19,
-                      color: Constants.darkGrey,
-                      letterSpacing: -0.3,
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Constants.darkGrey,
+                    letterSpacing: -0.3,
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(Icons.medication_liquid_rounded, size: 16, color: Constants.mediumGrey),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Dosage: $dosage',
-                        style: TextStyle(
-                          color: Constants.mediumGrey,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.medication_liquid_rounded, size: 14, color: Constants.mediumGrey),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Dosage: $dosage',
+                      style: TextStyle(
+                        color: Constants.mediumGrey,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -187,77 +156,54 @@ class ScheduleDetailsPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Overview Hero Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isActive
-                          ? [const Color(0xFF4CAF50), const Color(0xFF2E7D32)]
-                          : [Constants.darkblue.withValues(alpha: 0.7), Constants.darkblue],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isActive ? const Color(0xFF4CAF50) : Constants.darkblue).withValues(alpha: 0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Icon(
-                              isActive ? Icons.verified_rounded : Icons.history_rounded,
-                              color: Colors.white.withValues(alpha: 0.9),
-                              size: 36
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              isActive ? 'ACTIVE' : 'PAST',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 11,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
+
+                // --- HEADER: Name and Status Inline ---
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
                         scheduleName,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: Constants.darkGrey,
                           fontSize: 28,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.5,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Created ${_formatTimestamp(createdAt)}',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    ),
+                    const SizedBox(width: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? const Color(0xFF4CAF50).withValues(alpha: 0.1)
+                            : Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isActive ? Icons.verified_rounded : Icons.history_rounded,
+                            size: 16,
+                            color: isActive ? const Color(0xFF4CAF50) : Constants.mediumGrey,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isActive ? 'ACTIVE' : 'PAST',
+                            style: TextStyle(
+                              color: isActive ? const Color(0xFF4CAF50) : Constants.mediumGrey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 40),
@@ -280,7 +226,7 @@ class ScheduleDetailsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Meds Timeline List
+                // Meds List
                 if (sortedMeds.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20.0),
@@ -291,17 +237,13 @@ class ScheduleDetailsPage extends StatelessWidget {
                   )
                 else
                   ...List.generate(sortedMeds.length, (index) {
-                    return _buildTimelineMedRow(
-                        sortedMeds[index],
-                        index == sortedMeds.length - 1,
-                        context
-                    );
+                    return _buildMedicationRow(sortedMeds[index]);
                   }),
               ],
             ),
           ),
 
-          // 2. The Custom Floating Action Button Layer
+          // Custom Floating Action Button Layer
           Positioned(
             bottom: 16,
             right: 16,

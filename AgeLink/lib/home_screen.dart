@@ -399,6 +399,17 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Center(child: Text('Please log in.'));
     }
 
+    // --- GRAB THE USER'S FIRST NAME HERE ---
+    String firstName = '';
+    if (_currentUser!.displayName != null && _currentUser!.displayName!.trim().isNotEmpty) {
+      // Split the full name by space and take the first part
+      firstName = _currentUser!.displayName!.trim().split(' ').first;
+    }
+
+    // Create the final greeting text
+    String greetingText = firstName.isNotEmpty ? 'Hello, $firstName!' : 'Hello!';
+    // ---------------------------------------
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       child: Column(
@@ -413,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Hello!',
+                  greetingText, // <-- REPLACED 'Hello!' WITH OUR DYNAMIC TEXT
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -459,11 +470,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                     text: 'Connect Device',
                     icon: Icons.device_hub,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                   );
                 }
 
