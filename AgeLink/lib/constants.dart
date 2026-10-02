@@ -1,9 +1,23 @@
+// lib/constants.dart
+
 import 'package:flutter/material.dart';
 
 const String kAppId = String.fromEnvironment('app_id', defaultValue: 'default-app-id');
 const String kFirebaseConfigString = String.fromEnvironment('firebase_config', defaultValue: '{}');
 const String kInitialAuthToken = String.fromEnvironment('initial_auth_token', defaultValue: '');
 
+// --- GLOBAL GRADIENTS ---
+const kPrimaryGradient = LinearGradient(
+  colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
+
+const kRedGradient = LinearGradient(
+  colors: [Color(0xFFEF5350), Color(0xFFD32F2F)],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
 
 class Constants {
   static Color lightBlue = const Color(0xFFE3F2FD);
@@ -15,5 +29,4 @@ class Constants {
   static Color darkblue = const Color(0xFF0D47A1);
   static Color gradiantBlue = const Color(0xFFBCD8FF);
   static Color white = const Color(0xFFFFFFFF);
-
 }
