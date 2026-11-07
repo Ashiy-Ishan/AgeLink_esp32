@@ -1,5 +1,3 @@
-// lib/add_full_schedule_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -7,9 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
-import 'custom_snackbar.dart'; // <-- Using your new premium notification helper
+import 'custom_snackbar.dart';
 
-// --- (Gradient constants) ---
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
@@ -24,7 +21,7 @@ const kGreenGradient = LinearGradient(
 class _MedicationEntry {
   final TextEditingController name;
   final TextEditingController dosage;
-  final List<TimeOfDay> times;
+  final List times;
   String frequency;
 
   _MedicationEntry()
@@ -44,7 +41,7 @@ class AddFullSchedulePage extends StatefulWidget {
 class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
   final _formKey = GlobalKey<FormState>();
   final _scheduleNameController = TextEditingController();
-  final List<_MedicationEntry> _medicationEntries = [_MedicationEntry()];
+  final List _medicationEntries = [_MedicationEntry()];
   bool _isLoading = false;
 
   final User? _currentUser = FirebaseAuth.instance.currentUser;
@@ -57,17 +54,16 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
       _remindersRef = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
           databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
-      ).ref('reminders/${_currentUser.uid}');
+      ).ref('reminders/${_currentUser?.uid}');
     }
   }
 
-  // --- Premium Button Helper ---
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
     IconData? icon,
     required Gradient gradient,
-    double verticalPadding = 18.0, // Taller for premium feel
+    double verticalPadding = 18.0,
   }) {
     final bool isEnabled = onPressed != null;
     return ClipRRect(
@@ -113,7 +109,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     );
   }
 
-  // --- Premium Input Field Helper ---
   Widget _buildInputField({
     required TextEditingController controller,
     required String label,
@@ -185,19 +180,24 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     );
     if (picked != null) {
       setState(() {
-        _medicationEntries[entryIndex].times.add(picked);
-        _medicationEntries[entryIndex].times.sort((a, b) => (a.hour * 60 + a.minute).compareTo(b.hour * 60 + b.minute));
+        final currentEntry = _medicationEntries[entryIndex] as _MedicationEntry;
+        currentEntry.times.add(picked);
+        currentEntry.times.sort((a, b) {
+          final tA = a as TimeOfDay;
+          final tB = b as TimeOfDay;
+          return (tA.hour * 60 + tA.minute).compareTo(tB.hour * 60 + tB.minute);
+        });
       });
     }
   }
 
-  void _removeTime(int entryIndex, TimeOfDay time) {
+  void _removeTime(int entryIndex, dynamic time) {
     setState(() {
-      _medicationEntries[entryIndex].times.remove(time);
+      final currentEntry = _medicationEntries[entryIndex] as _MedicationEntry;
+      currentEntry.times.remove(time);
     });
   }
 
-  // --- MODIFIED _saveSchedule function for RTDB & Firestore ---
   Future<void> _saveSchedule() async {
     if (!_formKey.currentState!.validate()) return;
     if (_currentUser == null) return;
@@ -205,22 +205,20 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     setState(() { _isLoading = true; });
 
     try {
-      final Map<String, dynamic> rtdbScheduleObject = {};
-      final List<Map<String, dynamic>> firestoreMedicationsList = [];
+      final Map rtdbScheduleObject = {};
+      final List firestoreMedicationsList = [];
 
-      for (final entry in _medicationEntries) {
+      for (var entryObj in _medicationEntries) {
+        final entry = entryObj as _MedicationEntry;
         if (entry.name.text.isNotEmpty && entry.times.isNotEmpty) {
+          final List timesList = [];
 
-          final List<String> timesList = [];
-
-          for (var time in entry.times) {
+          for (var timeObj in entry.times) {
+            final time = timeObj as TimeOfDay;
             String timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-
-            // CRITICAL: Generate a safe key by replacing spaces
             final String safeName = entry.name.text.replaceAll(' ', '_');
             String key = "${safeName}_${timeStr.replaceAll(":", "")}";
 
-            // 1. Prepare data for RTDB
             rtdbScheduleObject[key] = {
               'name': entry.name.text,
               'dosage': entry.dosage.text,
@@ -230,7 +228,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
             timesList.add(timeStr);
           }
 
-          // 2. Prepare data for Firestore
           firestoreMedicationsList.add({
             'name': entry.name.text,
             'dosage': entry.dosage.text,
@@ -250,19 +247,16 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         return;
       }
 
-      // --- FIRESTORE HISTORY UPDATE ---
       final firestoreRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUser.uid)
+          .doc(_currentUser?.uid)
           .collection('medicationSchedules');
 
-      // 1. Deactivate all previously active schedules (for history logic)
       final existingSchedules = await firestoreRef.where('isActive', isEqualTo: true).get();
       for (final doc in existingSchedules.docs) {
         await doc.reference.update({'isActive': false});
       }
 
-      // 2. Add the new schedule as the active one in Firestore
       final firestoreScheduleData = {
         'scheduleName': _scheduleNameController.text,
         'isActive': true,
@@ -271,12 +265,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
       };
 
       await firestoreRef.add(firestoreScheduleData);
-
-      // --- RTDB ACTIVE SCHEDULE UPDATE ---
-      // 3. Overwrite the current active schedule in RTDB
       await _remindersRef.child('schedule/med_times').set(rtdbScheduleObject);
-
-      // 4. Update the device status in RTDB
       await _remindersRef.child('schedule/current_status').set("IDLE");
 
       if (mounted) {
@@ -294,7 +283,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
             isError: true
         );
       }
-      debugPrint("Schedule Save Error: $e");
     } finally {
       if (mounted) {
         setState(() { _isLoading = false; });
@@ -345,7 +333,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                       },
                     ),
                     const SizedBox(height: 32),
-
                     Row(
                       children: [
                         Icon(Icons.medication_rounded, color: Constants.darkGrey, size: 24),
@@ -357,18 +344,15 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-
                     ListView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _medicationEntries.length,
                       itemBuilder: (context, index) {
-                        return _buildMedicationFormRow(_medicationEntries[index], index);
+                        return _buildMedicationFormRow(_medicationEntries[index] as _MedicationEntry, index);
                       },
                     ),
                     const SizedBox(height: 8),
-
-                    // Add Another Medication Button
                     Center(
                       child: TextButton.icon(
                         onPressed: _addMedicationRow,
@@ -392,11 +376,9 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                 ),
               ),
             ),
-
-            // Bottom Save Button
             Container(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.transparent,
               ),
               child: _isLoading
@@ -405,7 +387,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                 onPressed: _saveSchedule,
                 text: 'Save & Activate Schedule',
                 icon: Icons.save_rounded,
-                gradient: kGreenGradient, // Using green to indicate activation
+                gradient: kGreenGradient,
               ),
             ),
           ],
@@ -457,8 +439,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               ],
             ),
             const Divider(height: 24),
-
-            // Name Field
             TextFormField(
               controller: entry.name,
               validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
@@ -476,8 +456,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Dosage Field
             TextFormField(
               controller: entry.dosage,
               style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w600),
@@ -494,8 +472,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               ),
             ),
             const SizedBox(height: 24),
-
-            // Frequency
             const Text('Frequency', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 8),
             SingleChildScrollView(
@@ -515,7 +491,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
                       onSelected: (bool selected) {
                         if (selected) {
                           setState(() {
-                            _medicationEntries[index].frequency = value;
+                            (_medicationEntries[index] as _MedicationEntry).frequency = value;
                           });
                         }
                       },
@@ -539,8 +515,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               ),
             ),
             const SizedBox(height: 24),
-
-            // Times Section
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -568,7 +542,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               ],
             ),
             const SizedBox(height: 12),
-
             if (entry.times.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
@@ -581,7 +554,8 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
               Wrap(
                 spacing: 12.0,
                 runSpacing: 12.0,
-                children: entry.times.map((time) {
+                children: entry.times.map((timeObj) {
+                  final time = timeObj as TimeOfDay;
                   return Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
