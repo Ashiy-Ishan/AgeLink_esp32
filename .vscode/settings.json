@@ -1,0 +1,9 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "arduino-cli": true,
+        "true": true,
+        "platformio": true,
+        "mkdir": true,
+        "cp": true
+    }
+}
