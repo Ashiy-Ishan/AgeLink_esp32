@@ -1,5 +1,3 @@
-// lib/app_menu_drawer.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,7 +8,7 @@ import 'settings_page.dart';
 import 'help_page.dart';
 import 'edit_profile_page.dart';
 import 'constants.dart';
-import 'custom_snackbar.dart'; // Using the premium notification helper
+import 'custom_snackbar.dart';
 
 class AppMenuDrawer extends StatelessWidget {
   const AppMenuDrawer({super.key});
@@ -33,52 +31,21 @@ class AppMenuDrawer extends StatelessWidget {
     );
   }
 
-  // Premium Menu Item Builder
-  Widget _buildMenuItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    Color? color,
-    bool isLogout = false,
-  }) {
-    final itemColor = color ?? Constants.darkGrey;
-    final bgColor = color?.withValues(alpha: 0.1) ?? const Color(0xFF1E88E5).withValues(alpha: 0.1);
-    final iconColor = color ?? const Color(0xFF1E88E5);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8.0, left: 16.0, right: 16.0),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: iconColor, size: 22),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: itemColor
-                    ),
-                  ),
-                ),
-                if (!isLogout)
-                  Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 24),
-              ],
-            ),
+  Widget _buildMenuItem({required IconData icon, required String title, required VoidCallback onTap, Color? color, bool isLogout = false}) {
+    final itemColor = color ?? Constants.darkGrey;
+    return Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+      child: Material(color: Colors.transparent,
+        child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16),
+          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+            child: Row(children: [
+              Container(width: 42, height: 42, decoration: BoxDecoration(
+                  color: (color ?? Constants.darkblue).withValues(alpha: 0.09), borderRadius: BorderRadius.circular(13)),
+                  child: Icon(icon, color: color ?? Constants.darkblue, size: 22)),
+              const SizedBox(width: 13),
+              Expanded(child: Text(title, style: TextStyle(color: itemColor, fontSize: 14, fontWeight: FontWeight.w700))),
+              if (!isLogout) Icon(Icons.chevron_right_rounded, color: Constants.mediumGrey, size: 21),
+            ]),
           ),
         ),
       ),
@@ -88,241 +55,85 @@ class AppMenuDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return const Drawer(child: Center(child: Text('Not logged in.')));
-    }
-
-    // --- 1. FIRESTORE PATH ---
-    final userDocRef = FirebaseFirestore.instance
-        .collection('artifacts')
-        .doc(appId)
-        .collection('users')
-        .doc(user.uid)
-        .collection('profile')
-        .doc('details');
-    // --- END OF PATH ---
-
-    return Drawer(
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFF8F9FA), // Very light clean background
+    if (user == null) return const Drawer(child: Center(child: Text('Not logged in.')));
+    final userDocRef = FirebaseFirestore.instance.collection('artifacts').doc(appId).collection('users')
+        .doc(user.uid).collection('profile').doc('details');
+    return Drawer(backgroundColor: Colors.white,
+      child: SafeArea(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(padding: const EdgeInsets.fromLTRB(20, 12, 14, 12),
+          child: Row(children: [
+            Expanded(child: Image.asset('assets/agelink_logo.png', height: 35, alignment: Alignment.centerLeft, fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => Text('AgeLink', style: TextStyle(color: Constants.darkblue, fontSize: 21, fontWeight: FontWeight.w800)))),
+            IconButton(onPressed: () => Navigator.of(context).pop(),
+                icon: Icon(Icons.close_rounded, color: Constants.darkGrey), tooltip: 'Close menu'),
+          ]),
         ),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Header & Close Button
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20.0, 16.0, 12.0, 0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Image.asset(
-                      'assets/agelink_logo.png',
-                      height: 32, // Adjust this height if needed
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) => const Text(
-                        'AgeLink', // Fallback if image path is wrong
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0D47A1),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.close_rounded, color: Constants.darkGrey, size: 20),
-                      ),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 2. Profile Card StreamBuilder (UPDATED TO MODERN LIGHT UI)
-              StreamBuilder<DocumentSnapshot>(
-                stream: userDocRef.snapshots(),
-                builder: (context, snapshot) {
-                  String name;
-                  String email = user.email ?? 'No email';
-                  String? profileImageUrl;
-
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    name = 'Loading...';
-                  } else if (snapshot.hasError) {
-                    name = 'Error';
-                  } else if (!snapshot.hasData || !snapshot.data!.exists) {
-                    name = user.displayName ?? 'New User';
-                  } else {
-                    final data = snapshot.data!.data() as Map<String, dynamic>;
-                    name = data['name'] ?? user.displayName ?? 'Caregiver User';
-                    email = data['email'] ?? user.email!;
-                    profileImageUrl = data['profileImageUrl'];
-                  }
-
-                  return Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Container(
-                      padding: const EdgeInsets.all(20.0),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
-                            blurRadius: 15,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(3),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: const Color(0xFF1E88E5).withValues(alpha: 0.2), width: 2),
-                                ),
-                                child: CircleAvatar(
-                                  radius: 28,
-                                  backgroundColor: const Color(0xFF1E88E5).withValues(alpha: 0.1),
-                                  backgroundImage: (profileImageUrl != null && profileImageUrl.isNotEmpty)
-                                      ? NetworkImage(profileImageUrl)
-                                      : null,
-                                  child: (profileImageUrl == null || profileImageUrl.isEmpty)
-                                      ? const Icon(Icons.person_rounded, size: 32, color: Color(0xFF1E88E5))
-                                      : null,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: Constants.darkGrey,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      email,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Constants.mediumGrey,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () => _navigateTo(context, const EditProfilePage()),
-                              icon: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF1E88E5)),
-                              label: const Text(
-                                'Edit Profile',
-                                style: TextStyle(color: Color(0xFF1E88E5), fontWeight: FontWeight.bold),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1E88E5).withValues(alpha: 0.1),
-                                foregroundColor: const Color(0xFF1E88E5),
-                                elevation: 0,
-                                shadowColor: Colors.transparent,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              // 3. Main Menu Items
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    children: [
-                      _buildMenuItem(
-                        icon: Icons.family_restroom_rounded,
-                        title: 'Family & Permissions',
-                        onTap: () => _navigateTo(context, const FamilyPermissionsPage()),
-                      ),
-                      _buildMenuItem(
-                        icon: Icons.devices_rounded,
-                        title: 'Device Settings',
-                        onTap: () => _navigateTo(context, const DevicePage()),
-                      ),
-                      _buildMenuItem(
-                        icon: Icons.settings_rounded,
-                        title: 'App Settings',
-                        onTap: () => _navigateTo(context, const SettingsPage()),
-                      ),
-
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                        child: Divider(color: Colors.grey.shade300, height: 1),
-                      ),
-
-                      _buildMenuItem(
-                        icon: Icons.help_outline_rounded,
-                        title: 'Help & Support',
-                        onTap: () => _navigateTo(context, const HelpPage()),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // 4. Log Out Button at Bottom
-              Container(
-                padding: const EdgeInsets.only(bottom: 24.0, top: 8.0),
-                child: _buildMenuItem(
-                  icon: Icons.logout_rounded,
-                  title: 'Log Out',
-                  color: Colors.redAccent,
-                  isLogout: true,
-                  onTap: () => _showLogoutConfirmation(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+        StreamBuilder<DocumentSnapshot>(stream: userDocRef.snapshots(), builder: (context, snapshot) {
+          String name;
+          String email = user.email ?? 'No email';
+          String? profileImageUrl;
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            name = 'Loading...';
+          } else if (snapshot.hasError) {
+            name = 'Error';
+          } else if (!snapshot.hasData || !snapshot.data!.exists) {
+            name = user.displayName ?? 'New User';
+          } else {
+            final data = snapshot.data!.data() as Map<String, dynamic>;
+            name = data['name'] ?? user.displayName ?? 'Caregiver User';
+            email = data['email'] ?? user.email!;
+            profileImageUrl = data['profileImageUrl'];
+          }
+          return Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 17),
+            child: Container(padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(20)),
+              child: Column(children: [
+                Row(children: [
+                  CircleAvatar(radius: 27, backgroundColor: Colors.white,
+                      backgroundImage: profileImageUrl != null && profileImageUrl.isNotEmpty ? NetworkImage(profileImageUrl) : null,
+                      child: profileImageUrl == null || profileImageUrl.isEmpty ? Icon(Icons.person_rounded, color: Constants.darkblue, size: 28) : null),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Constants.darkGrey, fontSize: 17, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text(email, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Constants.mediumGrey, fontSize: 12)),
+                  ])),
+                ]),
+                const SizedBox(height: 14),
+                SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                  onPressed: () => _navigateTo(context, const EditProfilePage()),
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: Constants.darkblue.withValues(alpha: 0.18)),
+                      backgroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  icon: Icon(Icons.edit_outlined, size: 17, color: Constants.darkblue),
+                  label: Text('Edit profile', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w700)),
+                )),
+              ]),
+            ),
+          );
+        }),
+        Expanded(child: SingleChildScrollView(physics: const BouncingScrollPhysics(), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.fromLTRB(24, 6, 16, 9),
+              child: Text('CARE & DEVICES', style: TextStyle(color: Constants.mediumGrey, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1))),
+          _buildMenuItem(icon: Icons.family_restroom_rounded, title: 'Family & Permissions', onTap: () => _navigateTo(context, const FamilyPermissionsPage())),
+          _buildMenuItem(icon: Icons.devices_rounded, title: 'Device Settings', onTap: () => _navigateTo(context, const DevicePage())),
+          const SizedBox(height: 14),
+          Padding(padding: const EdgeInsets.fromLTRB(24, 6, 16, 9),
+              child: Text('GENERAL', style: TextStyle(color: Constants.mediumGrey, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1))),
+          _buildMenuItem(icon: Icons.settings_outlined, title: 'App Settings', onTap: () => _navigateTo(context, const SettingsPage())),
+          _buildMenuItem(icon: Icons.help_outline_rounded, title: 'Help & Support', onTap: () => _navigateTo(context, const HelpPage())),
+        ]))),
+        Divider(height: 1, color: Constants.darkblue.withValues(alpha: 0.09)),
+        const SizedBox(height: 9),
+        _buildMenuItem(icon: Icons.logout_rounded, title: 'Log Out', color: Constants.redColor, isLogout: true,
+            onTap: () => _showLogoutConfirmation(context)),
+        const SizedBox(height: 14),
+      ])),
     );
   }
 
-  // Safe Logout Confirmation Dialog
+
   void _showLogoutConfirmation(BuildContext context) {
     showDialog(
       context: context,
@@ -364,8 +175,8 @@ class AppMenuDrawer extends StatelessWidget {
                 elevation: 0,
               ),
               onPressed: () {
-                Navigator.pop(dialogContext); // Close dialog
-                _logout(context); // Run actual logout
+                Navigator.pop(dialogContext);
+                _logout(context);
               },
               child: const Text('Log Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             ),

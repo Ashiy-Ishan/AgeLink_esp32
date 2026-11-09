@@ -1,11 +1,9 @@
-// lib/medication_schedule_page.dart
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'constants.dart';
-import 'add_full_schedule_page.dart';
+import 'add_full_schedule_page.dart' hide kPrimaryGradient, kGreenGradient;
 import 'schedule_details_page.dart';
 
 class MedicationSchedulePage extends StatefulWidget {
@@ -44,36 +42,130 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.all(40),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 20, offset: const Offset(0, 10))],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(color: const Color(0xFF1E88E5).withValues(alpha: 0.1), shape: BoxShape.circle),
-                    child: const Icon(Icons.edit_calendar_rounded, size: 56, color: Color(0xFF1E88E5)),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 38),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Constants.darkblue.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(22)),
+            child: Icon(Icons.calendar_month_rounded, color: Constants.darkblue, size: 34),
+          ),
+          const SizedBox(height: 20),
+          Text('No schedules yet', style: TextStyle(color: Constants.darkGrey, fontSize: 21, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text('Create a medication schedule to keep your loved one’s routine organized.', textAlign: TextAlign.center, style: TextStyle(color: Constants.mediumGrey, fontSize: 14, height: 1.5)),
+          const SizedBox(height: 22),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _navigateToAddSchedule,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Create Schedule'),
+              style: ElevatedButton.styleFrom(backgroundColor: Constants.darkblue, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummary(List<QueryDocumentSnapshot> docs) {
+    final activeCount = docs.where((doc) => (doc.data() as Map<String, dynamic>)['isActive'] == true).length;
+    final totalMedications = docs.fold<int>(0, (value, doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return value + ((data['medications'] as List<dynamic>?)?.length ?? 0);
+    });
+    return Container(
+      padding: const EdgeInsets.all(19),
+      decoration: BoxDecoration(
+        gradient: kPrimaryGradient,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.16), blurRadius: 18, offset: const Offset(0, 7))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [Icon(Icons.health_and_safety_outlined, color: Colors.white, size: 19), SizedBox(width: 8), Text('Medication plan overview', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700))]),
+          const SizedBox(height: 19),
+          Row(
+            children: [
+              _summaryValue('${docs.length}', 'Schedules'),
+              Container(height: 40, width: 1, color: Colors.white.withValues(alpha: 0.28)),
+              _summaryValue('$activeCount', 'Active'),
+              Container(height: 40, width: 1, color: Colors.white.withValues(alpha: 0.28)),
+              _summaryValue('$totalMedications', 'Medicines'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryValue(String value, String label) {
+    return Expanded(child: Column(children: [Text(value, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)), const SizedBox(height: 2), Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12))]));
+  }
+
+  Widget _buildScheduleCard(QueryDocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final scheduleName = data['scheduleName'] ?? 'Unnamed Schedule';
+    final createdAt = data['createdAt'] as Timestamp?;
+    final medications = (data['medications'] as List<dynamic>? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final bool isActive = data['isActive'] ?? false;
+    final pillCount = medications.length;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isActive ? Constants.darkblue.withValues(alpha: 0.25) : Constants.darkblue.withValues(alpha: 0.06), width: isActive ? 1.5 : 1),
+        boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.045), blurRadius: 16, offset: const Offset(0, 5))],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => ScheduleDetailsPage(scheduleId: doc.id, scheduleName: scheduleName, createdAt: createdAt, isActive: isActive, medications: medications)));
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(17),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(color: isActive ? Constants.lightBlue : const Color(0xFFF2F4F7), borderRadius: BorderRadius.circular(15)),
+                  child: Icon(isActive ? Icons.event_available_rounded : Icons.event_note_rounded, color: isActive ? Constants.darkblue : Constants.mediumGrey, size: 24),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(child: Text(scheduleName, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Constants.darkGrey, fontSize: 17, fontWeight: FontWeight.w800))),
+                        if (isActive) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: Constants.greenColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), child: Text('ACTIVE', style: TextStyle(color: Constants.greenColor, fontSize: 10, fontWeight: FontWeight.w800))),
+                      ]),
+                      const SizedBox(height: 9),
+                      Row(children: [Icon(Icons.medication_outlined, color: Constants.darkblue, size: 16), const SizedBox(width: 5), Text('$pillCount medication${pillCount == 1 ? '' : 's'}', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w700, fontSize: 13))]),
+                      const SizedBox(height: 7),
+                      Text('Created ${_formatTimestamp(createdAt)}', style: TextStyle(color: Constants.mediumGrey, fontSize: 12)),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  Text('No Schedules Yet', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Constants.darkGrey, letterSpacing: -0.5)),
-                  const SizedBox(height: 12),
-                  Text('Tap the glowing + button below to create your first medication schedule.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: Constants.mediumGrey, height: 1.5, fontWeight: FontWeight.w500)),
-                ],
-              ),
+                ),
+                const SizedBox(width: 4),
+                Padding(padding: const EdgeInsets.only(top: 12), child: Icon(Icons.chevron_right_rounded, color: Constants.mediumGrey, size: 23)),
+              ],
             ),
           ),
         ),
@@ -84,140 +176,43 @@ class _MedicationSchedulePageState extends State<MedicationSchedulePage> {
   @override
   Widget build(BuildContext context) {
     if (_currentUser == null) return const Center(child: Text('Please log in to manage schedules.'));
-
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: Container(
-        margin: const EdgeInsets.only(bottom: 16, right: 8),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const LinearGradient(colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-          boxShadow: [BoxShadow(color: const Color(0xFF1E88E5).withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 8))],
-        ),
-        child: FloatingActionButton(
-          onPressed: _navigateToAddSchedule,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          highlightElevation: 0,
-          child: const Icon(Icons.add_rounded, size: 32, color: Colors.white),
-        ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _navigateToAddSchedule,
+        backgroundColor: Constants.darkblue,
+        foregroundColor: Colors.white,
+        elevation: 3,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('New Schedule', style: TextStyle(fontWeight: FontWeight.w700)),
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Row(
-              children: [
-                Icon(Icons.edit_calendar_rounded, color: Constants.darkGrey, size: 28),
-                const SizedBox(width: 12),
-                Text('Manage Schedules', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Constants.darkGrey, letterSpacing: -0.5)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _schedulesStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                if (snapshot.hasError) return Center(child: Padding(padding: const EdgeInsets.all(20.0), child: Text('Error loading schedules.', textAlign: TextAlign.center, style: TextStyle(color: Constants.mediumGrey))));
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return _buildEmptyState();
-
-                return ListView.builder(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 100),
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    final doc = snapshot.data!.docs[index];
-                    final data = doc.data() as Map<String, dynamic>;
-
-                    final scheduleName = data['scheduleName'] ?? 'Unnamed Schedule';
-                    final createdAt = data['createdAt'] as Timestamp?;
-
-                    // Safely parse nested maps to avoid Dart analyzer errors
-                    final medications = (data['medications'] as List<dynamic>? ?? [])
-                        .map((e) => Map<String, dynamic>.from(e as Map))
-                        .toList();
-
-                    final bool isActive = data['isActive'] ?? false;
-                    final pillCount = medications.length;
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 16.0),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isActive ? [Colors.white, const Color(0xFFF1F8E9)] : [Colors.white, const Color(0xFFF8F9FA)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: isActive ? const Color(0xFF4CAF50).withValues(alpha: 0.4) : Colors.grey.shade200, width: isActive ? 2 : 1.5),
-                        boxShadow: [BoxShadow(color: (isActive ? const Color(0xFF4CAF50) : Colors.black).withValues(alpha: 0.04), blurRadius: 15, offset: const Offset(0, 5))],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(22),
-                          onTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => ScheduleDetailsPage(scheduleId: doc.id, scheduleName: scheduleName, createdAt: createdAt, isActive: isActive, medications: medications)));
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(20.0),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: isActive ? const Color(0xFF4CAF50).withValues(alpha: 0.15) : Colors.white,
-                                    shape: BoxShape.circle,
-                                    boxShadow: isActive ? [] : [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4))],
-                                  ),
-                                  child: Icon(isActive ? Icons.verified_rounded : Icons.history_rounded, color: isActive ? const Color(0xFF4CAF50) : Constants.mediumGrey, size: 26),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(child: Text(scheduleName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Constants.darkGrey), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                          if (isActive)
-                                            Container(
-                                              margin: const EdgeInsets.only(left: 8),
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                              decoration: BoxDecoration(color: const Color(0xFF4CAF50).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-                                              child: const Text('ACTIVE', style: TextStyle(color: Color(0xFF2E7D32), fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(_formatTimestamp(createdAt), style: TextStyle(color: Constants.mediumGrey, fontSize: 13, fontWeight: FontWeight.w500)),
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        children: [
-                                          Icon(Icons.medication_liquid_rounded, size: 16, color: Constants.mediumGrey),
-                                          const SizedBox(width: 6),
-                                          Text('$pillCount medication${pillCount == 1 ? '' : 's'}', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w700, fontSize: 14)),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Padding(padding: const EdgeInsets.only(left: 8.0), child: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 28)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _schedulesStream,
+        builder: (context, snapshot) {
+          return ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 115),
+            children: [
+              Text('Medication Schedules', style: TextStyle(color: Constants.darkGrey, fontSize: 25, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+              const SizedBox(height: 6),
+              Text('Manage medication routines for your loved ones.', style: TextStyle(color: Constants.mediumGrey, fontSize: 14)),
+              const SizedBox(height: 22),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const Padding(padding: EdgeInsets.all(36), child: Center(child: CircularProgressIndicator()))
+              else if (snapshot.hasError)
+                Padding(padding: const EdgeInsets.all(22), child: Text('Error loading schedules.', style: TextStyle(color: Constants.mediumGrey)))
+              else if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
+                  _buildEmptyState()
+                else ...[
+                    _buildSummary(snapshot.data!.docs),
+                    const SizedBox(height: 25),
+                    Row(children: [Expanded(child: Text('Your schedules', style: TextStyle(color: Constants.darkGrey, fontSize: 19, fontWeight: FontWeight.w800))), Text('${snapshot.data!.docs.length} total', style: TextStyle(color: Constants.mediumGrey, fontSize: 13, fontWeight: FontWeight.w600))]),
+                    const SizedBox(height: 13),
+                    ...snapshot.data!.docs.map(_buildScheduleCard),
+                  ],
+            ],
+          );
+        },
       ),
     );
   }

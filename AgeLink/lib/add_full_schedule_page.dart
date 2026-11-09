@@ -76,7 +76,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
           disabledBackgroundColor: Colors.transparent,
-          elevation: 5,
+          elevation: 0,
         ),
         child: Ink(
           decoration: BoxDecoration(
@@ -118,7 +118,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -133,7 +133,7 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
         style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w500),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: TextStyle(color: Constants.mediumGrey),
+          labelStyle: TextStyle(color: Constants.mediumGrey, fontSize: 14),
           prefixIcon: Icon(icon, color: const Color(0xFF1E88E5)),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
@@ -290,303 +290,316 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return GradientScaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Create Schedule',
-          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
+
+  Widget _sectionTitle(int number, String title, String subtitle) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(11)),
+          child: Text('$number', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Constants.darkblue)),
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: BackButton(color: Constants.darkblue),
-        centerTitle: true,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Constants.darkGrey)),
+              const SizedBox(height: 3),
+              Text(subtitle, style: TextStyle(fontSize: 12.5, color: Constants.mediumGrey, height: 1.35)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _fieldDecoration(String label, IconData icon, {String? hint}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: TextStyle(color: Constants.mediumGrey, fontSize: 13),
+      hintStyle: TextStyle(color: Constants.mediumGrey.withValues(alpha: 0.75), fontSize: 13),
+      prefixIcon: Icon(icon, color: Constants.darkblue, size: 20),
+      filled: true,
+      fillColor: const Color(0xFFF7FAFF),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 17),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFD9E7FA))),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFD9E7FA))),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Constants.darkblue, width: 1.6)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Constants.redColor)),
+    );
+  }
+
+  Widget _panel({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE0EAFA)),
+        boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.045), blurRadius: 20, offset: const Offset(0, 7))],
       ),
-      body: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(left: 4, bottom: 8),
-                      child: Text(
-                          'Schedule Overview',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))
-                      ),
-                    ),
-                    _buildInputField(
-                      controller: _scheduleNameController,
-                      label: 'Schedule Name (e.g., "Daily Pills")',
-                      icon: Icons.drive_file_rename_outline_rounded,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter a name for the schedule';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 32),
-                    Row(
-                      children: [
-                        Icon(Icons.medication_rounded, color: Constants.darkGrey, size: 24),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Medications',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Constants.darkGrey),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _medicationEntries.length,
-                      itemBuilder: (context, index) {
-                        return _buildMedicationFormRow(_medicationEntries[index] as _MedicationEntry, index);
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: _addMedicationRow,
-                        icon: const Icon(Icons.add_circle_outline_rounded, size: 24),
-                        label: const Text(
-                          'Add Another Medication',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF1E88E5),
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: const Color(0xFF1E88E5).withValues(alpha: 0.3), width: 1.5),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
+      child: child,
+    );
+  }
+
+  Widget _frequencySelector(String frequency, ValueChanged<String> onSelected) {
+    return LayoutBuilder(builder: (context, constraints) {
+      return Row(
+        children: ['Daily', 'Weekly', 'Custom'].map((value) {
+          final selected = frequency == value;
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: InkWell(
+                onTap: () => onSelected(value),
+                borderRadius: BorderRadius.circular(12),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  alignment: Alignment.center,
+                  constraints: const BoxConstraints(minHeight: 45),
+                  padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: selected ? Constants.darkblue : const Color(0xFFF4F8FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: selected ? Constants.darkblue : const Color(0xFFE0EAFA)),
+                  ),
+                  child: Text(value, textAlign: TextAlign.center, style: TextStyle(color: selected ? Colors.white : Constants.darkGrey, fontSize: 13, fontWeight: FontWeight.w700)),
                 ),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              decoration: const BoxDecoration(
-                color: Colors.transparent,
-              ),
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _buildGradientButton(
-                onPressed: _saveSchedule,
-                text: 'Save & Activate Schedule',
-                icon: Icons.save_rounded,
-                gradient: kGreenGradient,
-              ),
-            ),
-          ],
+          );
+        }).toList(),
+      );
+    });
+  }
+
+  Widget _actionButton({required String label, required IconData icon, required VoidCallback action, bool destructive = false}) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: action,
+        icon: Icon(icon, size: 19),
+        label: Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: destructive ? Constants.redColor : Constants.darkblue,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         ),
       ),
     );
   }
 
-  Widget _buildMedicationFormRow(_MedicationEntry entry, int index) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+  Widget _medicationFormCard(_MedicationEntry entry, int index) {
+    return _panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(12)),
+              child: Icon(Icons.medication_rounded, color: Constants.darkblue, size: 21),
+            ),
+            const SizedBox(width: 11),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Medication ${index + 1}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Constants.darkGrey)),
+              Text('Medicine information & reminders', style: TextStyle(fontSize: 11.5, color: Constants.mediumGrey)),
+            ])),
+            if (_medicationEntries.length > 1)
+              IconButton(
+                tooltip: 'Remove medication',
+                onPressed: () => _removeMedicationRow(index),
+                icon: Icon(Icons.delete_outline_rounded, color: Constants.redColor),
+              ),
+          ]),
+          const SizedBox(height: 18),
+          TextFormField(
+            controller: entry.name,
+            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+            style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w600),
+            decoration: _fieldDecoration('Medicine name', Icons.medication_outlined, hint: 'e.g. Amoxicillin'),
           ),
-        ],
-        border: Border.all(color: Colors.grey.shade100, width: 2),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Medication #${index + 1}',
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Constants.mediumGrey
-                  ),
-                ),
-                if (_medicationEntries.length > 1)
-                  InkWell(
-                    onTap: () => _removeMedicationRow(index),
-                    borderRadius: BorderRadius.circular(50),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4.0),
-                      child: Icon(Icons.delete_outline_rounded, color: Colors.redAccent.shade200, size: 22),
-                    ),
-                  ),
-              ],
-            ),
-            const Divider(height: 24),
-            TextFormField(
-              controller: entry.name,
-              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-              style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w600),
-              decoration: InputDecoration(
-                labelText: 'Medicine Name',
-                labelStyle: TextStyle(color: Constants.mediumGrey),
-                prefixIcon: const Icon(Icons.vaccines_rounded, color: Color(0xFF1E88E5)),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: entry.dosage,
-              style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w600),
-              decoration: InputDecoration(
-                labelText: 'Dosage (e.g., 1 Pill)',
-                labelStyle: TextStyle(color: Constants.mediumGrey),
-                prefixIcon: const Icon(Icons.scale_rounded, color: Color(0xFF1E88E5)),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text('Frequency', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: ['Daily', 'Weekly', 'Custom'].map((String value) {
-                  final isSelected = entry.frequency == value;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12.0),
-                    child: ChoiceChip(
-                      label: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        child: Text(value),
-                      ),
-                      selected: isSelected,
-                      onSelected: (bool selected) {
-                        if (selected) {
-                          setState(() {
-                            (_medicationEntries[index] as _MedicationEntry).frequency = value;
-                          });
-                        }
-                      },
-                      selectedColor: const Color(0xFF1E88E5),
-                      backgroundColor: Colors.white,
-                      elevation: isSelected ? 3 : 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(
-                          color: isSelected ? const Color(0xFF1E88E5) : Colors.grey.shade300,
-                          width: 1.5,
-                        ),
-                      ),
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : Constants.darkGrey,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Reminder Times', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => _selectTime(index),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.add_alarm_rounded, color: Color(0xFF1E88E5), size: 18),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Add Time',
-                            style: TextStyle(color: const Color(0xFF1E88E5), fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (entry.times.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
-                child: Text(
-                  'Tap "Add Time" to schedule this medication.',
-                  style: TextStyle(color: Constants.mediumGrey, fontStyle: FontStyle.italic, fontSize: 13),
-                ),
-              )
-            else
-              Wrap(
-                spacing: 12.0,
-                runSpacing: 12.0,
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: entry.dosage,
+            style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w600),
+            decoration: _fieldDecoration('Dosage', Icons.science_outlined, hint: 'e.g. 1 tablet'),
+          ),
+          const SizedBox(height: 19),
+          Text('How often?', style: TextStyle(color: Constants.darkGrey, fontSize: 14, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 9),
+          _frequencySelector(entry.frequency, (value) => setState(() => entry.frequency = value)),
+          const SizedBox(height: 20),
+          Row(children: [
+            Icon(Icons.schedule_rounded, color: Constants.darkblue, size: 19),
+            const SizedBox(width: 8),
+            Text('Reminder times', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Constants.darkGrey)),
+            const Spacer(),
+            Text('${entry.times.length} added', style: TextStyle(fontSize: 12, color: Constants.mediumGrey)),
+          ]),
+          const SizedBox(height: 10),
+          if (entry.times.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: entry.times.map((timeObj) {
                   final time = timeObj as TimeOfDay;
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF1E88E5).withValues(alpha: 0.3), width: 1.5),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.access_time_rounded, color: Color(0xFF1E88E5), size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          time.format(context),
-                          style: const TextStyle(
-                            color: Color(0xFF1E88E5),
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        InkWell(
-                          onTap: () => _removeTime(index, time),
-                          child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 18),
-                        ),
-                      ],
-                    ),
+                  return InputChip(
+                    avatar: Icon(Icons.access_time_rounded, size: 16, color: Constants.darkblue),
+                    label: Text(time.format(context), style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w700)),
+                    backgroundColor: Constants.lightBlue,
+                    side: BorderSide.none,
+                    deleteIcon: Icon(Icons.close_rounded, size: 17, color: Constants.darkblue),
+                    onDeleted: () => _removeTime(index, time),
                   );
                 }).toList(),
               ),
-          ],
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text('No reminder time added yet', style: TextStyle(fontSize: 12.5, color: Constants.mediumGrey)),
+            ),
+          SizedBox(
+            width: double.infinity,
+            height: 45,
+            child: OutlinedButton.icon(
+              onPressed: () => _selectTime(index),
+              icon: const Icon(Icons.add_alarm_rounded, size: 19),
+              label: const Text('Add reminder time', style: TextStyle(fontWeight: FontWeight.w700)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Constants.darkblue,
+                side: BorderSide(color: Constants.darkblue.withValues(alpha: 0.35)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GradientScaffold(
+      appBar: AppBar(
+        title: Text('Create Schedule', style: TextStyle(color: Constants.darkblue, fontSize: 17, fontWeight: FontWeight.w800)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        leading: BackButton(color: Constants.darkblue),
+      ),
+      body: SafeArea(
+        top: false,
+        child: Form(
+          key: _formKey,
+          child: Column(children: [
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Container(
+                            padding: const EdgeInsets.all(13),
+                            decoration: BoxDecoration(color: Constants.darkblue, borderRadius: BorderRadius.circular(16)),
+                            child: const Icon(Icons.medication_rounded, color: Colors.white, size: 25),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('New medication plan', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Constants.darkGrey)),
+                            const SizedBox(height: 3),
+                            Text('Set up a clear reminder routine for your loved one.', style: TextStyle(fontSize: 12.5, color: Constants.mediumGrey, height: 1.35)),
+                          ])),
+                        ]),
+                        const SizedBox(height: 26),
+                        _sectionTitle(1, 'Plan details', 'Give this medication routine a recognizable name'),
+                        const SizedBox(height: 12),
+                        _panel(child: TextFormField(
+                          controller: _scheduleNameController,
+                          validator: (v) => v == null || v.trim().isEmpty ? 'Please enter a name for the schedule' : null,
+                          style: TextStyle(color: Constants.darkGrey, fontSize: 15, fontWeight: FontWeight.w600),
+                          decoration: _fieldDecoration('Schedule name', Icons.edit_note_rounded, hint: 'e.g. Morning medication plan'),
+                        )),
+                        const SizedBox(height: 26),
+                        Row(children: [
+                          Expanded(child: _sectionTitle(2, 'Medications', 'Add medicines, frequency, and reminder times')),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(20)),
+                            child: Text('${_medicationEntries.length} total', style: TextStyle(color: Constants.darkblue, fontSize: 12, fontWeight: FontWeight.w800)),
+                          ),
+                        ]),
+                        const SizedBox(height: 13),
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _medicationEntries.length,
+                          separatorBuilder: (context, index) => const SizedBox(height: 13),
+                          itemBuilder: (context, index) => _medicationFormCard(_medicationEntries[index] as _MedicationEntry, index),
+                        ),
+                        const SizedBox(height: 15),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: OutlinedButton.icon(
+                            onPressed: _addMedicationRow,
+                            icon: const Icon(Icons.add_circle_outline_rounded),
+                            label: const Text('Add another medication', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Constants.darkblue,
+                              backgroundColor: Colors.white.withValues(alpha: 0.8),
+                              side: BorderSide(color: Constants.darkblue.withValues(alpha: 0.35)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 13),
+                        Row(children: [
+                          Icon(Icons.info_outline_rounded, size: 15, color: Constants.mediumGrey),
+                          const SizedBox(width: 7),
+                          Expanded(child: Text('Review your medication details before saving.', style: TextStyle(color: Constants.mediumGrey, fontSize: 12))),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.fromLTRB(18, 12, 18, MediaQuery.of(context).padding.bottom > 0 ? 12 : 17),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Constants.darkblue.withValues(alpha: 0.09))),
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: _isLoading
+                      ? const SizedBox(height: 52, child: Center(child: CircularProgressIndicator()))
+                      : Column(mainAxisSize: MainAxisSize.min, children: [
+                    _actionButton(label: 'Save & activate schedule', icon: Icons.check_circle_outline_rounded, action: _saveSchedule),
+                  ]),
+                ),
+              ),
+            ),
+          ]),
         ),
       ),
     );

@@ -1,4 +1,3 @@
-// lib/settings_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -99,95 +98,240 @@ class _SettingsPageState extends State<SettingsPage> {
     CustomSnackBar.show(context: context, message: 'Contact removed.', isError: true);
   }
 
+  Widget _sectionHeading(IconData icon, String title, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: Constants.lightBlue,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Constants.darkblue, size: 22),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: Constants.darkGrey, fontSize: 19, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 3),
+                Text(description, style: TextStyle(color: Constants.mediumGrey, fontSize: 13, height: 1.4)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    String? value,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                height: 42,
+                width: 42,
+                decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(13)),
+                child: Icon(icon, color: Constants.darkblue, size: 21),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w700, fontSize: 15.5)),
+                    const SizedBox(height: 4),
+                    Text(subtitle, style: TextStyle(color: Constants.mediumGrey, fontSize: 12.5, height: 1.3)),
+                  ],
+                ),
+              ),
+              if (value != null) ...[
+                const SizedBox(width: 6),
+                Text(value, style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.w700, fontSize: 12)),
+              ],
+              const SizedBox(width: 5),
+              Icon(Icons.chevron_right_rounded, color: Constants.mediumGrey, size: 22),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _contactCard(Map<String, String> contact) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Constants.darkblue.withValues(alpha: 0.08)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              height: 45,
+              width: 45,
+              decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(14)),
+              child: Icon(Icons.contact_emergency_rounded, color: Constants.darkblue, size: 21),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(contact['name']!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w700, fontSize: 16)),
+                  const SizedBox(height: 3),
+                  Text(contact['phone']!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Constants.mediumGrey, fontSize: 13)),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Remove contact',
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+              onPressed: () => _deleteContact(contact['key']!),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Settings', style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold)),
+        title: Text('Settings', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w800)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: BackButton(color: Constants.darkblue),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(children: [Icon(Icons.emergency_rounded, color: Colors.redAccent, size: 24), const SizedBox(width: 8), Text('Emergency Contacts', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Constants.darkGrey))]),
-            const SizedBox(height: 4),
-            Text('These numbers will be called when the SOS button is triggered.', style: TextStyle(color: Constants.mediumGrey, fontSize: 14)),
-            const SizedBox(height: 16),
-            StreamBuilder(
-              stream: _contactsRef.onValue,
-              builder: (context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
-                if (!snapshot.hasData || snapshot.data!.snapshot.value == null) return Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white, width: 2)), child: Center(child: Text('No emergency contacts added yet.', style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.w500))));
-                Map<dynamic, dynamic> contactsMap = snapshot.data!.snapshot.value as Map;
-                final contactsList = contactsMap.entries.map((entry) { final data = Map<String, dynamic>.from(entry.value as Map); return {'key': entry.key, 'name': (data['name'] ?? 'No Name').toString(), 'phone': (data['phone'] ?? 'No Phone').toString()}; }).toList();
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: contactsList.length,
-                  itemBuilder: (context, index) {
-                    final contact = contactsList[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12.0),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))], border: Border.all(color: Colors.grey.shade100, width: 1.5)),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.phone_in_talk_rounded, color: Colors.redAccent, size: 20)),
-                        title: Text(contact['name']!, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Constants.darkGrey)),
-                        subtitle: Text(contact['phone']!, style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.w500)),
-                        trailing: IconButton(icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent), onPressed: () => _deleteContact(contact['key']!)),
-                      ),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  gradient: kPrimaryGradient,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.14), blurRadius: 18, offset: const Offset(0, 7))],
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.health_and_safety_rounded, color: Colors.white, size: 38),
+                    SizedBox(width: 15),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Care settings', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                      SizedBox(height: 6),
+                      Text('Manage emergency contacts and app preferences in one place.', style: TextStyle(color: Colors.white, fontSize: 13, height: 1.4)),
+                    ])),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+              _sectionHeading(Icons.emergency_rounded, 'Emergency contacts', 'Contacts saved for the AgeLink SOS feature.'),
+              if (currentUser == null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Text('Please log in to manage emergency contacts.', style: TextStyle(color: Constants.mediumGrey)),
+                )
+              else
+                StreamBuilder<DatabaseEvent>(
+                  stream: _contactsRef.onValue,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+                    }
+                    if (snapshot.hasError) {
+                      return Padding(padding: const EdgeInsets.all(16), child: Text('Error: ${snapshot.error}'));
+                    }
+                    if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+                      return Container(
+                        padding: const EdgeInsets.all(22),
+                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.86), borderRadius: BorderRadius.circular(20)),
+                        child: Column(children: [
+                          Icon(Icons.person_add_alt_1_rounded, color: Constants.darkblue, size: 32),
+                          const SizedBox(height: 10),
+                          Text('No contacts added yet', style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w700, fontSize: 16)),
+                          const SizedBox(height: 5),
+                          Text('Add a trusted person to your emergency contacts.', textAlign: TextAlign.center, style: TextStyle(color: Constants.mediumGrey, fontSize: 13)),
+                        ]),
+                      );
+                    }
+                    Map<dynamic, dynamic> contactsMap = snapshot.data!.snapshot.value as Map;
+                    final contactsList = contactsMap.entries.map((entry) {
+                      final data = Map<String, dynamic>.from(entry.value as Map);
+                      return <String, String>{'key': entry.key.toString(), 'name': (data['name'] ?? 'No Name').toString(), 'phone': (data['phone'] ?? 'No Phone').toString()};
+                    }).toList();
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: contactsList.length,
+                      itemBuilder: (context, index) => _contactCard(contactsList[index]),
                     );
                   },
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildGradientButton(onPressed: _showAddContactDialog, text: 'Add New Contact', icon: Icons.person_add_rounded, gradient: const LinearGradient(colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)], begin: Alignment.topLeft, end: Alignment.bottomRight)),
-            const SizedBox(height: 32),
-            Divider(color: Colors.grey.shade300, height: 1),
-            const SizedBox(height: 32),
-            Row(children: [Icon(Icons.tune_rounded, color: Constants.darkGrey, size: 24), const SizedBox(width: 8), Text('App Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Constants.darkGrey))]),
-            const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))]),
-              child: SwitchListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                title: Text('Dark Mode', style: TextStyle(fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-                secondary: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF1E88E5).withValues(alpha: 0.1), shape: BoxShape.circle), child: Icon(_isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded, color: const Color(0xFF1E88E5), size: 20)),
-                value: _isDarkMode,
-                onChanged: (bool newValue) { setState(() { _isDarkMode = newValue; }); },
+                ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 54,
+                child: ElevatedButton.icon(
+                  onPressed: _showAddContactDialog,
+                  icon: const Icon(Icons.add_rounded, color: Colors.white),
+                  label: const Text('Add emergency contact', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(backgroundColor: Constants.darkblue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))]),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: const Color(0xFF1E88E5).withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.language_rounded, color: Color(0xFF1E88E5), size: 20)),
-                title: Text('Language', style: TextStyle(fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-                trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text(_selectedLanguage, style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.w600)), const SizedBox(width: 8), Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400)]),
-                onTap: () { CustomSnackBar.show(context: context, message: 'Language settings coming soon.'); },
+              const SizedBox(height: 30),
+              _sectionHeading(Icons.tune_rounded, 'App preferences', 'Personalize your AgeLink experience.'),
+              Container(
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.94), borderRadius: BorderRadius.circular(20), border: Border.all(color: Constants.darkblue.withValues(alpha: 0.07))),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+                      secondary: Container(
+                        width: 42, height: 42,
+                        decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(13)),
+                        child: Icon(_isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded, color: Constants.darkblue),
+                      ),
+                      title: Text('Dark mode', style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w700, fontSize: 15.5)),
+                      subtitle: Text('Display preference', style: TextStyle(color: Constants.mediumGrey, fontSize: 12.5)),
+                      value: _isDarkMode,
+                      activeThumbColor: Constants.darkblue,
+                      onChanged: (bool newValue) { setState(() { _isDarkMode = newValue; }); },
+                    ),
+                    Divider(indent: 72, endIndent: 18, height: 1, color: Constants.lightBlue),
+                    _settingTile(icon: Icons.language_rounded, title: 'Language', subtitle: 'App display language', value: _selectedLanguage, onTap: () { CustomSnackBar.show(context: context, message: 'Language settings coming soon.'); }),
+                    Divider(indent: 72, endIndent: 18, height: 1, color: Constants.lightBlue),
+                    _settingTile(icon: Icons.notifications_active_rounded, title: 'Notification preferences', subtitle: 'Reminder notification options', onTap: () { CustomSnackBar.show(context: context, message: 'Notification settings coming soon.'); }),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))]),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: const Color(0xFF1E88E5).withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.notifications_active_rounded, color: Color(0xFF1E88E5), size: 20)),
-                title: Text('Notification Preferences', style: TextStyle(fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-                trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
-                onTap: () { CustomSnackBar.show(context: context, message: 'Notification settings coming soon.'); },
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
