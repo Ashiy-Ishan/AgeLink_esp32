@@ -1,7 +1,6 @@
-// lib/schedule_details_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 import 'edit_full_schedule_page.dart';
@@ -11,7 +10,7 @@ class ScheduleDetailsPage extends StatelessWidget {
   final String scheduleName;
   final Timestamp? createdAt;
   final bool isActive;
-  final List<Map<String, dynamic>> medications;
+  final List medications;
 
   const ScheduleDetailsPage({
     super.key,
@@ -21,6 +20,11 @@ class ScheduleDetailsPage extends StatelessWidget {
     required this.isActive,
     required this.medications,
   });
+
+  String _formatTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return 'Unknown Date';
+    return DateFormat('MMMM d, yyyy • h:mm a').format(timestamp.toDate());
+  }
 
   String _formatTime12h(String time24h) {
     try {
@@ -50,11 +54,18 @@ class ScheduleDetailsPage extends StatelessWidget {
     );
   }
 
-  // --- SIMPLE UI: Clean Medication Card ---
-  Widget _buildMedicationRow(Map<String, dynamic> med) {
-    final name = med['name'] ?? 'Unknown';
-    final dosage = med['dosage'] ?? 'N/A';
-    final time = med['time'] ?? '00:00';
+  Widget _buildMedicationRow(Map med) {
+    final name = med['name']?.toString() ?? 'Unknown';
+    final dosage = med['dosage']?.toString() ?? 'N/A';
+
+    List times = [];
+    if (med['times'] != null && med['times'] is List) {
+      times = List.from(med['times']);
+    } else if (med['time'] != null) {
+      times = [med['time'].toString()];
+    } else {
+      times = ['00:00'];
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -70,58 +81,77 @@ class ScheduleDetailsPage extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Time Block
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              _formatTime12h(time),
-              style: TextStyle(
-                color: Constants.darkGrey,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-
-          // Medication Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: Constants.darkGrey,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.medication_liquid_rounded, size: 14, color: Constants.mediumGrey),
-                    const SizedBox(width: 4),
                     Text(
-                      'Dosage: $dosage',
+                      name,
                       style: TextStyle(
-                        color: Constants.mediumGrey,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Constants.darkGrey,
+                        letterSpacing: -0.3,
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.medication_liquid_rounded, size: 14, color: Constants.mediumGrey),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Dosage: $dosage',
+                          style: TextStyle(
+                            color: Constants.mediumGrey,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+
+          if (times.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: times.map((time) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300, width: 0.5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.access_time_rounded, size: 12, color: Constants.mediumGrey),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatTime12h(time.toString()),
+                        style: TextStyle(
+                          color: Constants.darkGrey,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ]
         ],
       ),
     );
@@ -129,13 +159,6 @@ class ScheduleDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sortedMeds = List<Map<String, dynamic>>.from(medications);
-    sortedMeds.sort((a, b) {
-      String timeA = a['time'] ?? '00:00';
-      String timeB = b['time'] ?? '00:00';
-      return timeA.compareTo(timeB);
-    });
-
     return GradientScaffold(
       appBar: AppBar(
         title: const Text(
@@ -156,8 +179,6 @@ class ScheduleDetailsPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
-                // --- HEADER: Name and Status Inline ---
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -208,13 +229,12 @@ class ScheduleDetailsPage extends StatelessWidget {
 
                 const SizedBox(height: 40),
 
-                // Meds Header
                 Row(
                   children: [
                     Icon(Icons.medication_rounded, color: Constants.darkGrey, size: 24),
                     const SizedBox(width: 8),
                     Text(
-                      'Medications (${sortedMeds.length})',
+                      'Medications (${medications.length})',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
@@ -226,8 +246,7 @@ class ScheduleDetailsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Meds List
-                if (sortedMeds.isEmpty)
+                if (medications.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20.0),
                     child: Text(
@@ -236,14 +255,17 @@ class ScheduleDetailsPage extends StatelessWidget {
                     ),
                   )
                 else
-                  ...List.generate(sortedMeds.length, (index) {
-                    return _buildMedicationRow(sortedMeds[index]);
+                  ...List.generate(medications.length, (index) {
+                    final medObj = medications[index];
+                    if (medObj is Map) {
+                      return _buildMedicationRow(medObj);
+                    }
+                    return const SizedBox();
                   }),
               ],
             ),
           ),
 
-          // Custom Floating Action Button Layer
           Positioned(
             bottom: 16,
             right: 16,

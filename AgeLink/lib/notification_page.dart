@@ -1,12 +1,11 @@
 // lib/notification_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'constants.dart';
-import 'gradient_scaffold.dart';
+import 'dart:ui';
 
 class DoseNotification {
   final String docId;
@@ -38,7 +37,6 @@ class DoseNotification {
     String state = (data['reminder_state'] ?? 'Missed').toString();
     String medName = (data['medicine_name'] ?? 'Unknown Medication').toString();
     String confirmedAt = (data['confirmed_at'] ?? 'N/A').toString();
-
     bool taken = (state == 'Green' || state == 'Orange' || state == 'Red');
 
     return DoseNotification(
@@ -61,13 +59,11 @@ class NotificationPage extends StatefulWidget {
 
 class _NotificationPageState extends State<NotificationPage> {
   final String? userId = FirebaseAuth.instance.currentUser?.uid;
-
   DatabaseReference? _alertsRef;
 
   @override
   void initState() {
     super.initState();
-
     if (userId != null) {
       _alertsRef = FirebaseDatabase.instanceFor(
           app: Firebase.app(),
@@ -82,13 +78,9 @@ class _NotificationPageState extends State<NotificationPage> {
     final yesterday = today.subtract(const Duration(days: 1));
     final doseDay = DateTime(date.year, date.month, date.day);
 
-    if (doseDay.isAtSameMomentAs(today)) {
-      return 'Today';
-    } else if (doseDay.isAtSameMomentAs(yesterday)) {
-      return 'Yesterday';
-    } else {
-      return DateFormat('MMMM d, yyyy').format(date);
-    }
+    if (doseDay.isAtSameMomentAs(today)) return 'Today';
+    if (doseDay.isAtSameMomentAs(yesterday)) return 'Yesterday';
+    return DateFormat('MMMM d, yyyy').format(date);
   }
 
   Widget _buildDateHeader(DateTime date) {
@@ -96,50 +88,18 @@ class _NotificationPageState extends State<NotificationPage> {
       padding: const EdgeInsets.only(top: 24.0, bottom: 20.0),
       child: Row(
         children: [
-          Expanded(
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.transparent, Colors.grey.shade300],
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: Container(height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, Colors.grey.shade300])))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.grey.shade200),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
             ),
-            child: Text(
-              _formatDate(date),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Constants.darkGrey,
-                letterSpacing: 0.5,
-              ),
-            ),
+            child: Text(_formatDate(date), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Constants.darkGrey, letterSpacing: 0.5)),
           ),
-          Expanded(
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.grey.shade300, Colors.transparent],
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: Container(height: 1, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.grey.shade300, Colors.transparent])))),
         ],
       ),
     );
@@ -148,49 +108,35 @@ class _NotificationPageState extends State<NotificationPage> {
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 15,
-                offset: const Offset(0, 5),
-              )
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.notifications_off_rounded, size: 64, color: Color(0xFF1E88E5)),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(32),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.all(40),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 20, offset: const Offset(0, 10))],
               ),
-              const SizedBox(height: 24),
-              Text(
-                'No Alerts Yet',
-                style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Constants.darkGrey
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(color: const Color(0xFF1E88E5).withValues(alpha: 0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.notifications_off_rounded, size: 56, color: Color(0xFF1E88E5)),
+                  ),
+                  const SizedBox(height: 24),
+                  Text('No Alerts Yet', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Constants.darkGrey, letterSpacing: -0.5)),
+                  const SizedBox(height: 12),
+                  Text('Your medication history and alerts will appear here.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: Constants.mediumGrey, height: 1.5, fontWeight: FontWeight.w500)),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Your medication history and alerts will appear here.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: Constants.mediumGrey, height: 1.4),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -199,188 +145,115 @@ class _NotificationPageState extends State<NotificationPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (userId == null) {
-      return const GradientScaffold(
-          body: Center(
-              child: Text("Please log in to view alerts.", style: TextStyle(fontSize: 18))
-          )
-      );
-    }
+    if (userId == null) return const Center(child: Text("Please log in to view alerts.", style: TextStyle(fontSize: 18)));
+    if (_alertsRef == null) return const Center(child: Text("Error: Alerts collection path is invalid.", style: TextStyle(fontSize: 18)));
 
-    if (_alertsRef == null) {
-      return const GradientScaffold(
-          body: Center(
-              child: Text("Error: Alerts collection path is invalid.", style: TextStyle(fontSize: 18))
-          )
-      );
-    }
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Row(
+              children: [
+                Icon(Icons.notifications_active_rounded, color: Constants.darkGrey, size: 28),
+                const SizedBox(width: 12),
+                Text('Notifications', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Constants.darkGrey, letterSpacing: -0.5)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: StreamBuilder<DatabaseEvent>(
+              stream: _alertsRef!.orderByChild('date').onValue,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                if (snapshot.hasError) return Center(child: Text('Error loading alerts: ${snapshot.error}'));
 
-    return GradientScaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Notifications',
-          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const BackButton(color: Color(0xFF0D47A1)),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<DatabaseEvent>(
-        stream: _alertsRef!.orderByChild('date').onValue,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading alerts: ${snapshot.error}'));
-          }
-
-          final List<DoseNotification> alerts = [];
-          if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-            for (final child in snapshot.data!.snapshot.children) {
-              try {
-                alerts.add(DoseNotification.fromRTDB(child));
-              } catch (e) {
-                debugPrint('Error parsing notification: $e');
-              }
-            }
-            // Sort by date (Newest first)
-            alerts.sort((a, b) => b.date.compareTo(a.date));
-          }
-
-          if (alerts.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          return ListView.builder(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-            itemCount: alerts.length,
-            itemBuilder: (context, index) {
-              final notification = alerts[index];
-              final DateTime currentDoseDate = DateTime(notification.date.year, notification.date.month, notification.date.day);
-
-              // 1. Determine if we need to show the Date Header
-              bool showDateHeader = true;
-              if (index > 0) {
-                final previousNotification = alerts[index - 1];
-                final DateTime previousDoseDate = DateTime(previousNotification.date.year, previousNotification.date.month, previousNotification.date.day);
-
-                if (currentDoseDate.isAtSameMomentAs(previousDoseDate)) {
-                  showDateHeader = false;
+                final List<DoseNotification> alerts = [];
+                if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+                  for (final child in snapshot.data!.snapshot.children) {
+                    try { alerts.add(DoseNotification.fromRTDB(child)); } catch (e) { debugPrint('Error parsing notification: $e'); }
+                  }
+                  alerts.sort((a, b) => b.date.compareTo(a.date));
                 }
-              }
 
-              // 2. Determine if this is the LAST item of the current day (to stop the horizontal divider)
-              bool isLastOfDay = false;
-              if (index < alerts.length - 1) {
-                final nextNotification = alerts[index + 1];
-                final DateTime nextDoseDate = DateTime(nextNotification.date.year, nextNotification.date.month, nextNotification.date.day);
-                if (!currentDoseDate.isAtSameMomentAs(nextDoseDate)) {
-                  isLastOfDay = true;
-                }
-              } else {
-                isLastOfDay = true; // Absolute last item in the list
-              }
+                if (alerts.isEmpty) return _buildEmptyState();
 
-              final Color statusColor = notification.isTaken ? const Color(0xFF4CAF50) : Colors.redAccent;
-              final Color bgColor = notification.isTaken ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : Colors.redAccent.withValues(alpha: 0.1);
-              final IconData statusIcon = notification.isTaken ? Icons.check_circle_rounded : Icons.cancel_rounded;
-              final String statusText = notification.isTaken ? 'Taken (${notification.reminderState})' : 'Missed';
+                return ListView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                  itemCount: alerts.length,
+                  itemBuilder: (context, index) {
+                    final notification = alerts[index];
+                    final DateTime currentDoseDate = DateTime(notification.date.year, notification.date.month, notification.date.day);
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (showDateHeader) _buildDateHeader(notification.date),
+                    bool showDateHeader = true;
+                    if (index > 0) {
+                      final previousNotification = alerts[index - 1];
+                      final DateTime previousDoseDate = DateTime(previousNotification.date.year, previousNotification.date.month, previousNotification.date.day);
+                      if (currentDoseDate.isAtSameMomentAs(previousDoseDate)) showDateHeader = false;
+                    }
 
-                  // --- White Card for Notification ---
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                    bool isLastOfDay = false;
+                    if (index < alerts.length - 1) {
+                      final nextNotification = alerts[index + 1];
+                      final DateTime nextDoseDate = DateTime(nextNotification.date.year, nextNotification.date.month, nextNotification.date.day);
+                      if (!currentDoseDate.isAtSameMomentAs(nextDoseDate)) isLastOfDay = true;
+                    } else {
+                      isLastOfDay = true;
+                    }
+
+                    final Color statusColor = notification.isTaken ? const Color(0xFF4CAF50) : Colors.redAccent;
+                    final Color bgColor = notification.isTaken ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : Colors.redAccent.withValues(alpha: 0.1);
+                    final IconData statusIcon = notification.isTaken ? Icons.check_circle_rounded : Icons.cancel_rounded;
+                    final String statusText = notification.isTaken ? 'Taken (${notification.reminderState})' : 'Missed';
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Left Icon
+                        if (showDateHeader) _buildDateHeader(notification.date),
                         Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: bgColor,
-                            shape: BoxShape.circle,
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
                           ),
-                          child: Icon(statusIcon, color: statusColor, size: 24),
-                        ),
-                        const SizedBox(width: 16),
-
-                        // Medication Details
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text(
-                                notification.medicationName,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 17,
-                                  color: Constants.darkGrey,
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+                                child: Icon(statusIcon, color: statusColor, size: 24),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(notification.medicationName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Constants.darkGrey)),
+                                    const SizedBox(height: 4),
+                                    Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.w600, fontSize: 14)),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                statusText,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
+                              Text(notification.time, style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.w800, fontSize: 14)),
                             ],
                           ),
                         ),
-
-                        // Right Time
-                        Text(
-                          notification.time,
-                          style: TextStyle(
-                            color: Constants.mediumGrey,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                          ),
-                        ),
+                        if (!isLastOfDay) Padding(padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0), child: Divider(color: Colors.grey.shade300, thickness: 1, height: 1)),
+                        if (isLastOfDay) const SizedBox(height: 16),
                       ],
-                    ),
-                  ),
-
-                  // --- Single Horizontal Divider Between Cards ---
-                  if (!isLastOfDay)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-                      child: Divider(
-                        color: Colors.grey.shade300,
-                        thickness: 1,
-                        height: 1,
-                      ),
-                    ),
-
-                  // Add bottom spacing at the end of the day group
-                  if (isLastOfDay)
-                    const SizedBox(height: 16),
-                ],
-              );
-            },
-          );
-        },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

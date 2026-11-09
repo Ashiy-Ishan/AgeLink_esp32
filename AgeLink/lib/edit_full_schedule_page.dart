@@ -1,8 +1,8 @@
-// lib/edit_full_schedule_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 import 'custom_snackbar.dart';
@@ -21,7 +21,7 @@ const kRedGradient = LinearGradient(
 class EditFullSchedulePage extends StatefulWidget {
   final String scheduleId;
   final String initialScheduleName;
-  final List<Map<String, dynamic>> initialMedications;
+  final List initialMedications;
   final bool isActive;
 
   const EditFullSchedulePage({
@@ -39,16 +39,43 @@ class EditFullSchedulePage extends StatefulWidget {
 class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
-  late List<Map<String, dynamic>> _medications;
+  late List _medications;
   bool _isLoading = false;
   final User? _currentUser = FirebaseAuth.instance.currentUser;
+  late final DatabaseReference _remindersRef;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialScheduleName);
-    // Deep copy the medications to avoid mutating the original list
-    _medications = List.from(widget.initialMedications.map((med) => Map<String, dynamic>.from(med)));
+
+    _medications = [];
+    for (var med in widget.initialMedications) {
+      if (med is Map) {
+        final times = [];
+        if (med['times'] != null && med['times'] is Iterable) {
+          times.addAll(med['times']);
+        } else if (med['time'] != null) {
+          times.add(med['time']);
+        } else {
+          times.add('08:00');
+        }
+
+        _medications.add({
+          'name': med['name']?.toString() ?? '',
+          'dosage': med['dosage']?.toString() ?? '',
+          'frequency': med['frequency']?.toString() ?? 'Daily',
+          'times': times,
+        });
+      }
+    }
+
+    if (_currentUser != null) {
+      _remindersRef = FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
+      ).ref('reminders/${_currentUser.uid}');
+    }
   }
 
   @override
@@ -57,35 +84,29 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
     super.dispose();
   }
 
-  // --- Dynamic Medication Management ---
   void _addNewMedication() {
     setState(() {
       _medications.add({
         'name': '',
         'dosage': '',
-        'time': '08:00',
+        'frequency': 'Daily',
+        'times': [],
       });
     });
   }
 
   void _removeMedication(int index) {
-    setState(() {
-      _medications.removeAt(index);
-    });
+    if (_medications.length > 1) {
+      setState(() {
+        _medications.removeAt(index);
+      });
+    }
   }
 
-  Future<void> _selectTime(BuildContext context, int index) async {
-    // Safely parse the time with a fallback
-    final timeStr = _medications[index]['time']?.toString() ?? '08:00';
-    final parts = timeStr.split(':');
-    TimeOfDay initialTime = TimeOfDay(
-        hour: int.tryParse(parts[0]) ?? 8,
-        minute: parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0
-    );
-
+  Future<void> _addTime(int index) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
-      initialTime: initialTime,
+      initialTime: TimeOfDay.now(),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -102,19 +123,50 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
 
     if (picked != null) {
       setState(() {
-        final String hour = picked.hour.toString().padLeft(2, '0');
-        final String minute = picked.minute.toString().padLeft(2, '0');
-        _medications[index]['time'] = '$hour:$minute';
+        final String timeStr = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+        final currentTimes = _medications[index]['times'] as List;
+        if (!currentTimes.contains(timeStr)) {
+          currentTimes.add(timeStr);
+          currentTimes.sort();
+        }
       });
     }
   }
 
-  // --- Firestore Logic ---
+  void _removeTime(int medIndex, String timeStr) {
+    setState(() {
+      final currentTimes = _medications[medIndex]['times'] as List;
+      currentTimes.remove(timeStr);
+    });
+  }
+
+  String _formatTime12h(String time24h) {
+    try {
+      final parts = time24h.split(':');
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      final dt = DateTime(2025, 1, 1, hour, minute);
+      return TimeOfDay.fromDateTime(dt).format(context);
+    } catch (e) {
+      return time24h;
+    }
+  }
+
   Future<void> _updateSchedule() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_medications.isEmpty) {
-      CustomSnackBar.show(context: context, message: 'Please add at least one medication.', isError: true);
+    bool hasValidMed = false;
+    for (var med in _medications) {
+      final name = med['name']?.toString() ?? '';
+      final times = med['times'] as List? ?? [];
+      if (name.isNotEmpty && times.isNotEmpty) {
+        hasValidMed = true;
+        break;
+      }
+    }
+
+    if (!hasValidMed) {
+      CustomSnackBar.show(context: context, message: 'Please add at least one medication with a time.', isError: true);
       return;
     }
 
@@ -125,7 +177,7 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
 
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUser!.uid)
+          .doc(_currentUser.uid)
           .collection('medicationSchedules')
           .doc(widget.scheduleId)
           .update({
@@ -133,10 +185,34 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
         'medications': _medications,
       });
 
+      if (widget.isActive) {
+        final rtdbScheduleObject = <String, dynamic>{};
+        for (final entry in _medications) {
+          final String name = entry['name']?.toString() ?? '';
+          final String dosage = entry['dosage']?.toString() ?? '';
+          final times = entry['times'] as List? ?? [];
+
+          if (name.isNotEmpty && times.isNotEmpty) {
+            for (var t in times) {
+              final String timeStr = t.toString();
+              final String safeName = name.replaceAll(' ', '_');
+              String key = "${safeName}_${timeStr.replaceAll(":", "")}";
+              rtdbScheduleObject[key] = {
+                'name': name,
+                'dosage': dosage,
+                'time': timeStr,
+              };
+            }
+          }
+        }
+        await _remindersRef.child('schedule/med_times').set(rtdbScheduleObject);
+        await _remindersRef.child('schedule/current_status').set("IDLE");
+      }
+
       if (mounted) {
         CustomSnackBar.show(context: context, message: 'Schedule updated successfully!');
-        Navigator.pop(context); // Pop details page
-        Navigator.pop(context); // Pop list page
+        Navigator.pop(context);
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -155,10 +231,15 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
 
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUser!.uid)
+          .doc(_currentUser.uid)
           .collection('medicationSchedules')
           .doc(widget.scheduleId)
           .delete();
+
+      if (widget.isActive) {
+        await _remindersRef.child('schedule/med_times').remove();
+        await _remindersRef.child('schedule/current_status').set("IDLE");
+      }
 
       if (mounted) {
         CustomSnackBar.show(context: context, message: 'Schedule deleted.');
@@ -219,7 +300,6 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
     );
   }
 
-  // --- Styled UI Components ---
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
@@ -235,6 +315,7 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
+          elevation: 5,
         ),
         child: Ink(
           decoration: BoxDecoration(
@@ -316,149 +397,265 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
         leading: BackButton(color: Constants.darkblue),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // --- Schedule Overview ---
-              const Padding(
-                padding: EdgeInsets.only(left: 4, bottom: 8),
-                child: Text('Schedule Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
-              ),
-              _buildInputField(
-                controller: _nameController,
-                label: 'Schedule Name (e.g., Morning Routine)',
-                icon: Icons.edit_calendar_rounded,
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 32),
-
-              // --- Medications List ---
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Medications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: _addNewMedication,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.add_rounded, color: Color(0xFF1E88E5), size: 20),
-                              const SizedBox(width: 4),
-                              const Text('Add Pill', style: TextStyle(color: Color(0xFF1E88E5), fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4, bottom: 8),
+                      child: Text('Schedule Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+                    ),
+                    _buildInputField(
+                      controller: _nameController,
+                      label: 'Schedule Name (e.g., Morning Routine)',
+                      icon: Icons.edit_calendar_rounded,
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 32),
+
+                    Row(
+                      children: [
+                        Icon(Icons.medication_rounded, color: Constants.darkGrey, size: 24),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Medications',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Constants.darkGrey),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _medications.length,
+                      itemBuilder: (context, index) {
+                        final String currentName = _medications[index]['name']?.toString() ?? '';
+                        final String currentDosage = _medications[index]['dosage']?.toString() ?? '';
+                        final String currentFrequency = _medications[index]['frequency']?.toString() ?? 'Daily';
+                        final currentTimes = _medications[index]['times'] as List? ?? [];
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 24.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 15,
+                                offset: const Offset(0, 5),
+                              ),
                             ],
+                            border: Border.all(color: Colors.grey.shade100, width: 2),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Medication #${index + 1}',
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Constants.mediumGrey
+                                      ),
+                                    ),
+                                    if (_medications.length > 1)
+                                      InkWell(
+                                        onTap: () => _removeMedication(index),
+                                        borderRadius: BorderRadius.circular(50),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(4.0),
+                                          child: Icon(Icons.delete_outline_rounded, color: Colors.redAccent.shade200, size: 22),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const Divider(height: 24),
+
+                                _buildInputField(
+                                  initialValue: currentName,
+                                  onChanged: (val) => _medications[index]['name'] = val,
+                                  label: 'Medicine Name',
+                                  icon: Icons.vaccines_rounded,
+                                  validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildInputField(
+                                  initialValue: currentDosage,
+                                  onChanged: (val) => _medications[index]['dosage'] = val,
+                                  label: 'Dosage (e.g., 1 Pill)',
+                                  icon: Icons.scale_rounded,
+                                  validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                                ),
+                                const SizedBox(height: 24),
+
+                                const Text('Frequency', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                const SizedBox(height: 8),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Row(
+                                    children: ['Daily', 'Weekly', 'Custom'].map((String value) {
+                                      final isSelected = currentFrequency == value;
+                                      return Padding(
+                                        padding: const EdgeInsets.only(right: 12.0),
+                                        child: ChoiceChip(
+                                          label: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                            child: Text(value),
+                                          ),
+                                          selected: isSelected,
+                                          onSelected: (bool selected) {
+                                            if (selected) {
+                                              setState(() {
+                                                _medications[index]['frequency'] = value;
+                                              });
+                                            }
+                                          },
+                                          selectedColor: const Color(0xFF1E88E5),
+                                          backgroundColor: Colors.white,
+                                          elevation: isSelected ? 3 : 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
+                                            side: BorderSide(
+                                              color: isSelected ? const Color(0xFF1E88E5) : Colors.grey.shade300,
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          labelStyle: TextStyle(
+                                            color: isSelected ? Colors.white : Constants.darkGrey,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Reminder Times', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () => _addTime(index),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.add_alarm_rounded, color: Color(0xFF1E88E5), size: 18),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Add Time',
+                                                style: TextStyle(color: const Color(0xFF1E88E5), fontWeight: FontWeight.bold, fontSize: 14),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+
+                                if (currentTimes.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                                    child: Text(
+                                      'Tap "Add Time" to schedule this medication.',
+                                      style: TextStyle(color: Constants.mediumGrey, fontStyle: FontStyle.italic, fontSize: 13),
+                                    ),
+                                  )
+                                else
+                                  Wrap(
+                                    spacing: 12.0,
+                                    runSpacing: 12.0,
+                                    children: currentTimes.map((time) {
+                                      final timeStr = time.toString();
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: const Color(0xFF1E88E5).withValues(alpha: 0.3), width: 1.5),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.access_time_rounded, color: Color(0xFF1E88E5), size: 16),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              _formatTime12h(timeStr),
+                                              style: const TextStyle(
+                                                color: Color(0xFF1E88E5),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            InkWell(
+                                              onTap: () => _removeTime(index, timeStr),
+                                              child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 18),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _addNewMedication,
+                        icon: const Icon(Icons.add_circle_outline_rounded, size: 24),
+                        label: const Text(
+                          'Add Another Medication',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF1E88E5),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: const Color(0xFF1E88E5).withValues(alpha: 0.3), width: 1.5),
                           ),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
-
-              ...List.generate(_medications.length, (index) {
-                // Safely extract variables to prevent Null type errors
-                final String currentName = _medications[index]['name']?.toString() ?? '';
-                final String currentDosage = _medications[index]['dosage']?.toString() ?? '';
-                final String currentTime = _medications[index]['time']?.toString() ?? '00:00';
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 24),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'Pill ${index + 1}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E88E5)),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                            onPressed: () => _removeMedication(index),
-                            splashRadius: 24,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInputField(
-                        initialValue: currentName,
-                        onChanged: (val) => _medications[index]['name'] = val,
-                        label: 'Medicine Name',
-                        icon: Icons.medication_rounded,
-                        validator: (v) => v!.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildInputField(
-                        initialValue: currentDosage,
-                        onChanged: (val) => _medications[index]['dosage'] = val,
-                        label: 'Dosage (e.g., 2 Pills)',
-                        icon: Icons.scale_rounded,
-                        validator: (v) => v!.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Styled Time Selector
-                      InkWell(
-                        onTap: () => _selectTime(context, index),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFF1E88E5).withValues(alpha: 0.3), width: 1.5),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.access_time_rounded, color: Color(0xFF1E88E5), size: 22),
-                                  const SizedBox(width: 12),
-                                  const Text('Time', style: TextStyle(color: Color(0xFF1E88E5), fontSize: 16, fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                              Text(
-                                  currentTime,
-                                  style: const TextStyle(color: Color(0xFF1E88E5), fontSize: 18, fontWeight: FontWeight.bold)
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-              const SizedBox(height: 24),
-
-              // --- Action Buttons ---
-              _isLoading
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              decoration: const BoxDecoration(
+                color: Colors.transparent,
+              ),
+              child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : Column(
                 children: [
@@ -468,7 +665,7 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
                     icon: Icons.save_rounded,
                     gradient: kPrimaryGradient,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   _buildGradientButton(
                     onPressed: _showDeleteConfirmation,
                     text: 'Delete Schedule',
@@ -477,9 +674,8 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 32),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
