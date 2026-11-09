@@ -1,8 +1,8 @@
-// lib/family_permissions_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'invite_member_page.dart';
+import 'invite_member_page.dart' hide kPrimaryGradient;
+import 'family_invitation_service.dart';
 import 'gradient_scaffold.dart';
 import 'constants.dart';
 import 'custom_snackbar.dart';
@@ -18,6 +18,7 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
   late final Stream<QuerySnapshot> _familyStream;
   final String appId = kAppId;
+  String? _processingInvitation;
 
   @override
   void initState() {
@@ -81,30 +82,22 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
   Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 15, offset: const Offset(0, 5))],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), shape: BoxShape.circle),
-                child: const Icon(Icons.group_add_rounded, size: 64, color: Color(0xFF1E88E5)),
-              ),
-              const SizedBox(height: 24),
-              Text('No Family Members', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-              const SizedBox(height: 8),
-              Text('Invite family members to share schedules and alerts.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: Constants.mediumGrey, height: 1.4)),
-            ],
-          ),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 34),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Constants.lightBlue),
+              boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 8))]),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(22)),
+                child: Icon(Icons.family_restroom_rounded, color: Constants.darkblue, size: 38)),
+            const SizedBox(height: 18),
+            Text('Your care circle starts here', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Constants.darkGrey)),
+            const SizedBox(height: 8),
+            Text('Invite a family member to share medication schedules and updates.', textAlign: TextAlign.center,
+                style: TextStyle(color: Constants.mediumGrey, fontSize: 14, height: 1.5)),
+          ]),
         ),
       ),
     );
@@ -113,72 +106,244 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
   Widget _buildMemberCard(String name, String mode) {
     final bool isFullMode = mode == 'Full Mode';
     return Container(
-      margin: const EdgeInsets.only(bottom: 12.0),
-      padding: const EdgeInsets.all(16.0),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Constants.darkblue.withValues(alpha: 0.08)),
+          boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.05), blurRadius: 14, offset: const Offset(0, 5))]),
+      child: Row(children: [
+        Container(width: 50, height: 50, decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(16)),
+            child: Icon(Icons.person_outline_rounded, color: Constants.darkblue, size: 27)),
+        const SizedBox(width: 13),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Constants.darkGrey, fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Row(children: [
+            Icon(isFullMode ? Icons.admin_panel_settings_outlined : Icons.visibility_outlined, size: 15,
+                color: isFullMode ? Constants.darkblue : Constants.mediumGrey),
+            const SizedBox(width: 5),
+            Flexible(child: Text(mode, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: isFullMode ? Constants.darkblue : Constants.mediumGrey, fontSize: 12, fontWeight: FontWeight.w700))),
+          ]),
+        ])),
+      ]),
+    );
+  }
+
+  Future<void> _handleInvitation(
+      QueryDocumentSnapshot<Map<String, dynamic>> invitation,
+      bool accept) async {
+    if (_processingInvitation != null) return;
+    setState(() => _processingInvitation = invitation.id);
+    try {
+      if (accept) {
+        await FamilyInvitationService.acceptInvitation(invitation);
+      } else {
+        await FamilyInvitationService.declineInvitation(invitation);
+      }
+      if (!mounted) return;
+      CustomSnackBar.show(
+        context: context,
+        message: accept ? 'Invitation accepted.' : 'Invitation declined.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      CustomSnackBar.show(
+        context: context,
+        message: error.toString(),
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _processingInvitation = null);
+    }
+  }
+
+  Widget _emailVerificationCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: Colors.grey.shade100, width: 1.5),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Constants.lightBlue),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFF1E88E5).withValues(alpha: 0.1), shape: BoxShape.circle),
-                child: const Icon(Icons.person_rounded, color: Color(0xFF1E88E5), size: 20),
-              ),
-              const SizedBox(width: 16),
-              Text(name, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-            ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Verify your email to use invitations',
+            style: TextStyle(color: Constants.darkGrey,
+                fontSize: 16, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Text('Invitations are linked to your verified email address.',
+            style: TextStyle(color: Constants.mediumGrey)),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(
+            onPressed: () async {
+              try {
+                await FirebaseAuth.instance.currentUser!.sendEmailVerification();
+                if (!mounted) return;
+                CustomSnackBar.show(context: context,
+                    message: 'Verification email sent. Check your inbox.');
+              } catch (error) {
+                if (!mounted) return;
+                CustomSnackBar.show(context: context,
+                    message: error.toString(), isError: true);
+              }
+            },
+            child: const Text('Send verification email'),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: isFullMode ? const Color(0xFF4CAF50).withValues(alpha: 0.1) : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isFullMode ? const Color(0xFF4CAF50).withValues(alpha: 0.3) : Colors.grey.shade300),
-            ),
-            child: Text(mode, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isFullMode ? const Color(0xFF2E7D32) : Constants.mediumGrey)),
+          TextButton(
+            onPressed: () async {
+              await FirebaseAuth.instance.currentUser?.reload();
+              if (mounted) setState(() {});
+            },
+            child: const Text('I have verified'),
           ),
-        ],
-      ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _invitationSection() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FamilyInvitationService.receivedInvitations(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text('Unable to load invitations: ${snapshot.error}',
+                style: TextStyle(color: Constants.redColor)),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()));
+        }
+        final pending = snapshot.data!.docs
+            .where((doc) => doc.data()['status'] == 'pending')
+            .toList();
+        final accepted = snapshot.data!.docs
+            .where((doc) => doc.data()['status'] == 'accepted')
+            .toList();
+        if (pending.isEmpty && accepted.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (pending.isNotEmpty) ...[
+            Text('Invitations for you',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800,
+                    color: Constants.darkGrey)),
+            const SizedBox(height: 12),
+            ...pending.map((doc) {
+              final info = doc.data();
+              final busy = _processingInvitation != null;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Constants.lightBlue),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(info['ownerName']?.toString() ?? 'Care group',
+                      style: TextStyle(color: Constants.darkGrey,
+                          fontWeight: FontWeight.w800, fontSize: 16)),
+                  const SizedBox(height: 6),
+                  Text('Invited you with ${info['mode'] ?? 'View Mode'} access',
+                      style: TextStyle(color: Constants.mediumGrey)),
+                  const SizedBox(height: 15),
+                  Row(children: [
+                    Expanded(child: OutlinedButton(
+                      onPressed: busy ? null : () => _handleInvitation(doc, false),
+                      child: const Text('Decline'),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(child: ElevatedButton(
+                      onPressed: busy ? null : () => _handleInvitation(doc, true),
+                      child: const Text('Accept', style: TextStyle(color: Colors.white)),
+                    )),
+                  ]),
+                ]),
+              );
+            }),
+            const SizedBox(height: 18),
+          ],
+          if (accepted.isNotEmpty) ...[
+            Text('Care groups shared with you',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800,
+                    color: Constants.darkGrey)),
+            const SizedBox(height: 10),
+            ...accepted.map((doc) {
+              final info = doc.data();
+              return _buildMemberCard(
+                info['ownerName']?.toString() ?? 'Care group',
+                info['mode']?.toString() ?? 'View Mode',
+              );
+            }),
+            const SizedBox(height: 18),
+          ],
+        ]);
+      },
+    );
+  }
+
+  Widget _sentInvitationSection() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FamilyInvitationService.sentInvitations(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.hasError) {
+          return snapshot.hasError
+              ? Text('Unable to load sent invitations.',
+              style: TextStyle(color: Constants.redColor))
+              : const SizedBox.shrink();
+        }
+        final pending = snapshot.data!.docs
+            .where((doc) => doc.data()['status'] == 'pending').toList();
+        if (pending.isEmpty) return const SizedBox.shrink();
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const SizedBox(height: 22),
+          Text('Awaiting acceptance',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800,
+                  color: Constants.darkGrey)),
+          const SizedBox(height: 12),
+          ...pending.map((doc) {
+            final info = doc.data();
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Colors.white,
+                  borderRadius: BorderRadius.circular(18)),
+              child: Row(children: [
+                Icon(Icons.mark_email_unread_outlined, color: Constants.darkblue),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(info['recipientEmail']?.toString() ?? '',
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Constants.darkGrey,
+                              fontWeight: FontWeight.w700)),
+                      Text('Pending · ${info['mode'] ?? 'View Mode'}',
+                          style: TextStyle(color: Constants.mediumGrey, fontSize: 12)),
+                    ])),
+              ]),
+            );
+          }),
+        ]);
+      },
     );
   }
 
   Widget _buildInviteButton(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const InviteMemberPage())); },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E88E5).withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF1E88E5).withValues(alpha: 0.3), width: 2),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: Color(0xFF1E88E5), shape: BoxShape.circle),
-                    child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: 16),
-                  const Text('Invite Family Members', style: TextStyle(color: Color(0xFF0D47A1), fontSize: 16, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const Icon(Icons.chevron_right_rounded, color: Color(0xFF0D47A1), size: 24),
-            ],
-          ),
+    return SizedBox(width: double.infinity, height: 54,
+      child: DecoratedBox(decoration: BoxDecoration(gradient: kPrimaryGradient, borderRadius: BorderRadius.circular(16)),
+        child: ElevatedButton.icon(
+          onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const InviteMemberPage())); },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+          icon: const Icon(Icons.person_add_alt_1_rounded, color: Colors.white),
+          label: const Text('Invite family member', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
         ),
       ),
     );
@@ -187,64 +352,67 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
   @override
   Widget build(BuildContext context) {
     if (currentUser == null) return const GradientScaffold(body: Center(child: Text('Please log in to view family members.')));
-
     return GradientScaffold(
-      appBar: AppBar(
-        title: const Text('Family Permissions', style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: BackButton(color: Constants.darkblue),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 16.0),
-            child: Row(
-              children: [
-                Icon(Icons.family_restroom_rounded, color: Constants.darkGrey, size: 24),
-                const SizedBox(width: 10),
-                Text('Family Group', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-              ],
+      appBar: AppBar(title: Text('Family & permissions', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w700, fontSize: 18)),
+          backgroundColor: Colors.transparent, elevation: 0, leading: BackButton(color: Constants.darkblue), centerTitle: true),
+      body: SafeArea(child: Column(children: [
+        Expanded(child: StreamBuilder<QuerySnapshot>(
+          stream: _familyStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+            if (snapshot.hasError) return Center(child: Text('Error loading family members.', style: TextStyle(color: Constants.mediumGrey)));
+            final members = snapshot.data?.docs ?? [];
+            return ListView(physics: const BouncingScrollPhysics(), padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), children: [
+              Container(padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(gradient: kPrimaryGradient, borderRadius: BorderRadius.circular(24),
+                    boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.17), blurRadius: 20, offset: const Offset(0, 8))]),
+                child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('YOUR CARE CIRCLE', style: TextStyle(color: Colors.white70, fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 12),
+                    Text('${members.length} family member${members.length == 1 ? '' : 's'}',
+                        style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: Colors.white)),
+                    const SizedBox(height: 7),
+                    const Text('Stay connected with the people supporting your loved ones.',
+                        style: TextStyle(color: Colors.white, fontSize: 13, height: 1.45)),
+                  ])),
+                  const SizedBox(width: 12),
+                  const Icon(Icons.family_restroom_rounded, color: Colors.white70, size: 44),
+                ]),
+              ),
+              const SizedBox(height: 26),
+              Text('Family members', style: TextStyle(color: Constants.darkGrey, fontSize: 19, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 5),
+              Text('See who has access to your care group.', style: TextStyle(color: Constants.mediumGrey, fontSize: 13)),
+              const SizedBox(height: 16),
+              if (FirebaseAuth.instance.currentUser?.emailVerified == true &&
+                  FirebaseAuth.instance.currentUser?.email != null)
+                _invitationSection()
+              else
+                _emailVerificationCard(),
+              if (members.isEmpty) _buildEmptyState(context)
+              else ...members.map((doc) {
+                final member = doc.data() as Map<String, dynamic>;
+                return _buildMemberCard(member['name'] ?? 'Unknown Name', member['mode'] ?? 'View Mode');
+              }),
+              _sentInvitationSection(),
+            ]);
+          },
+        )),
+        Container(padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.9),
+              border: Border(top: BorderSide(color: Constants.darkblue.withValues(alpha: 0.08)))),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            _buildInviteButton(context),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () { CustomSnackBar.show(context: context, message: 'Edit Access is under construction.'); },
+              icon: Icon(Icons.manage_accounts_outlined, color: Constants.darkblue, size: 19),
+              label: Text('Edit access', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w700)),
             ),
-          ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _familyStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                if (snapshot.hasError) return Center(child: Text('Error loading family members.', style: TextStyle(color: Constants.mediumGrey)));
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return _buildEmptyState(context);
-
-                return ListView.builder(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    var member = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-                    return _buildMemberCard(member['name'] ?? 'Unknown Name', member['mode'] ?? 'View Mode');
-                  },
-                );
-              },
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            child: Column(
-              children: [
-                _buildInviteButton(context),
-                const SizedBox(height: 16),
-                _buildGradientButton(
-                  onPressed: () { CustomSnackBar.show(context: context, message: 'Edit Access is under construction.'); },
-                  text: 'Edit Access',
-                  icon: Icons.edit_note_rounded,
-                  gradient: const LinearGradient(colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+          ]),
+        ),
+      ])),
     );
   }
 }

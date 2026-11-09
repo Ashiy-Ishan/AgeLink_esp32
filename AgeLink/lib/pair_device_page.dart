@@ -1,5 +1,3 @@
-// lib/pair_device_page.dart
-
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -10,11 +8,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 
-const kPrimaryGradient = LinearGradient(
-  colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-);
 
 class PairDevicePage extends StatefulWidget {
   const PairDevicePage({super.key});
@@ -191,8 +184,8 @@ class _PairDevicePageState extends State<PairDevicePage> {
       await _bleService.disconnect();
 
       if (!mounted) return;
-      Navigator.pop(context); // Close the WiFi dialog
-      Navigator.pop(context); // Go back to the home screen
+      Navigator.pop(context);
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Device paired successfully!')),
       );
@@ -210,140 +203,48 @@ class _PairDevicePageState extends State<PairDevicePage> {
     }
   }
 
-  // --- PREMIUM UI: Styled WiFi Credential Dialog ---
   void _showWifiDialog(String deviceId) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        child: Container(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+        backgroundColor: Colors.white,
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.wifi_rounded, size: 40, color: Color(0xFF1E88E5)),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Connect to WiFi',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Constants.darkGrey,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Enter your home network details to put AgeLink online.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Constants.mediumGrey),
-              ),
-              const SizedBox(height: 24),
-
-              // Styled SSID Input
-              TextField(
-                controller: _ssidController,
-                style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w500),
-                decoration: InputDecoration(
-                  labelText: 'WiFi Name (SSID)',
-                  prefixIcon: const Icon(Icons.router_rounded, color: Color(0xFF1E88E5)),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Styled Password Input
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w500),
-                decoration: InputDecoration(
-                  labelText: 'WiFi Password',
-                  prefixIcon: const Icon(Icons.lock_rounded, color: Color(0xFF1E88E5)),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // Action Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      onPressed: () {
-                        _bleService.disconnect();
-                        Navigator.pop(context);
-                      },
-                      child: Text('Cancel', style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.bold, fontSize: 16)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: kPrimaryGradient,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
-                        onPressed: () => _sendWifiCredentials(deviceId),
-                        child: const Text('Connect', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(width: 52, height: 52, decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(16)), child: Icon(Icons.wifi_rounded, color: Constants.darkblue, size: 28)),
+            const SizedBox(height: 16),
+            Text('Connect to Wi-Fi', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: Constants.darkblue)),
+            const SizedBox(height: 8),
+            Text('Enter the network details the AgeLink device should use.', style: TextStyle(fontSize: 14, height: 1.45, color: Constants.mediumGrey)),
+            const SizedBox(height: 24),
+            Text('Wi-Fi network name', style: TextStyle(fontWeight: FontWeight.w700, color: Constants.darkGrey)),
+            const SizedBox(height: 8),
+            TextField(controller: _ssidController, decoration: InputDecoration(hintText: 'Network name (SSID)', prefixIcon: Icon(Icons.router_rounded, color: Constants.darkblue), filled: true, fillColor: Constants.lightBlue.withValues(alpha: 0.45), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none))),
+            const SizedBox(height: 16),
+            Text('Wi-Fi password', style: TextStyle(fontWeight: FontWeight.w700, color: Constants.darkGrey)),
+            const SizedBox(height: 8),
+            TextField(controller: _passwordController, obscureText: true, decoration: InputDecoration(hintText: 'Enter your password', prefixIcon: Icon(Icons.lock_outline_rounded, color: Constants.darkblue), filled: true, fillColor: Constants.lightBlue.withValues(alpha: 0.45), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none))),
+            const SizedBox(height: 26),
+            Row(children: [
+              Expanded(child: OutlinedButton(onPressed: () { _bleService.disconnect(); Navigator.pop(context); }, style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), foregroundColor: Constants.darkblue), child: const Text('Cancel'))),
+              const SizedBox(width: 12),
+              Expanded(child: Container(decoration: BoxDecoration(gradient: kPrimaryGradient, borderRadius: BorderRadius.circular(14)), child: ElevatedButton(onPressed: () => _sendWifiCredentials(deviceId), style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, minimumSize: const Size(0, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))), child: const Text('Connect', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))))),
+            ]),
+          ]),
         ),
       ),
+    );
+  }
+
+  Widget _panel({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(23), border: Border.all(color: Constants.darkblue.withValues(alpha: 0.07)), boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.04), blurRadius: 18, offset: const Offset(0, 7))]),
+      child: child,
     );
   }
 
@@ -351,167 +252,78 @@ class _PairDevicePageState extends State<PairDevicePage> {
   Widget build(BuildContext context) {
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text(
-          'Pair Device',
-          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
-        ),
+        title: Text('Pair device', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w800, fontSize: 19)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: BackButton(color: Constants.darkblue),
         centerTitle: true,
-        actions: [
-          if (!_isLoading) // Hide refresh while loading
-            IconButton(
-              icon: Icon(_isScanning ? Icons.stop_rounded : Icons.refresh_rounded, color: Constants.darkblue),
-              onPressed: _startScan,
-            ),
-        ],
+        actions: [if (!_isLoading) IconButton(tooltip: 'Scan again', icon: Icon(Icons.refresh_rounded, color: Constants.darkblue), onPressed: _startScan)],
       ),
       body: _isLoading
-          ? Center(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20)
-              ]
-          ),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: Color(0xFF1E88E5)),
-              SizedBox(height: 16),
-              Text('Connecting...', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
-        ),
-      )
-          : Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-            child: Text(
-              'Available Devices',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Constants.darkGrey,
-              ),
+          ? Center(child: _panel(child: const Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), SizedBox(height: 18), Text('Connecting to your AgeLink device...', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700))])))
+          : Column(children: [
+        Expanded(child: ListView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 28),
+          children: [
+            Text('Set up AgeLink', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Constants.darkblue)),
+            const SizedBox(height: 6),
+            Text('Find and connect your loved one’s medication reminder device.', style: TextStyle(color: Constants.mediumGrey, height: 1.45, fontSize: 14)),
+            const SizedBox(height: 22),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(gradient: kPrimaryGradient, borderRadius: BorderRadius.circular(24)),
+              child: Row(children: [
+                Container(width: 55, height: 55, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.bluetooth_searching_rounded, color: Colors.white, size: 30)),
+                const SizedBox(width: 15),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_isScanning ? 'Looking for nearby devices' : 'Device discovery', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 5),
+                  Text(_isScanning ? 'Scanning for AgeLink devices…' : 'Select a device below to continue', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                ])),
+                if (_isScanning) const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+              ]),
             ),
-          ),
-          Expanded(
-            child: _scanResults.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (_isScanning) ...[
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const CircularProgressIndicator(color: Color(0xFF1E88E5)),
-                    ),
-                    const SizedBox(height: 24),
-                    Text('Scanning for AgeLink devices...', style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w600, fontSize: 16)),
-                  ] else ...[
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.bluetooth_searching_rounded, size: 48, color: Constants.mediumGrey),
-                    ),
-                    const SizedBox(height: 24),
-                    Text('No devices found.', style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.bold, fontSize: 18)),
-                    const SizedBox(height: 8),
-                    Text('Tap the refresh icon to scan again.', style: TextStyle(color: Constants.mediumGrey)),
-                  ]
-                ],
-              ),
-            )
-                : ListView.builder(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _scanResults.length,
-              itemBuilder: (context, index) {
-                var result = _scanResults[index];
-                final deviceName = result.device.platformName.isNotEmpty
-                    ? result.device.platformName
-                    : 'Unknown Device';
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () => _connectToDevice(result.device),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1E88E5).withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.memory_rounded, color: Color(0xFF1E88E5)),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    deviceName,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Constants.darkGrey,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    result.device.remoteId.toString(),
-                                    style: TextStyle(
-                                      color: Constants.mediumGrey,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+            const SizedBox(height: 26),
+            Row(children: [
+              Expanded(child: Text('Available devices', style: TextStyle(color: Constants.darkGrey, fontSize: 19, fontWeight: FontWeight.w800))),
+              Text('${_scanResults.length} found', style: TextStyle(color: Constants.mediumGrey, fontSize: 13, fontWeight: FontWeight.w600)),
+            ]),
+            const SizedBox(height: 12),
+            if (_scanResults.isEmpty)
+              _panel(child: Column(children: [
+                const SizedBox(height: 12),
+                Container(width: 74, height: 74, decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(23)), child: Icon(_isScanning ? Icons.bluetooth_searching_rounded : Icons.devices_other_rounded, color: Constants.darkblue, size: 36)),
+                const SizedBox(height: 20),
+                Text(_isScanning ? 'Searching for devices' : 'No AgeLink devices found', style: TextStyle(fontSize: 18, color: Constants.darkGrey, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 9),
+                Text(_isScanning ? 'Keep the device nearby while scanning.' : 'Make sure the device is powered on, then use the refresh icon to scan again.', textAlign: TextAlign.center, style: TextStyle(color: Constants.mediumGrey, fontSize: 14, height: 1.5)),
+                const SizedBox(height: 12),
+              ]))
+            else
+              ..._scanResults.map((result) {
+                final deviceName = result.device.platformName.isNotEmpty ? result.device.platformName : 'Unknown Device';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Material(color: Colors.transparent, child: InkWell(
+                    borderRadius: BorderRadius.circular(23),
+                    onTap: () => _connectToDevice(result.device),
+                    child: _panel(child: Row(children: [
+                      Container(width: 50, height: 50, decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(15)), child: Icon(Icons.memory_rounded, color: Constants.darkblue, size: 25)),
+                      const SizedBox(width: 14),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(deviceName, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Constants.darkGrey)),
+                        const SizedBox(height: 5),
+                        Text(result.device.remoteId.toString(), overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Constants.mediumGrey)),
+                      ])),
+                      Icon(Icons.chevron_right_rounded, color: Constants.darkblue),
+                    ])),
+                  )),
                 );
-              },
-            ),
-          ),
-        ],
-      ),
+              }),
+          ],
+        )),
+      ]),
     );
   }
 }

@@ -1,22 +1,20 @@
-// lib/edit_profile_page.dart
-
 import 'dart:io';
-import 'package:flutter/material.dart'; // <-- THIS WAS THE MISSING LINE
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
-import 'custom_snackbar.dart'; // <-- Added premium notifications
+import 'custom_snackbar.dart';
 
-// --- (Gradient constant) ---
+
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
   begin: Alignment.centerLeft,
   end: Alignment.centerRight,
 );
-// ------------------------------------------
+
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -40,7 +38,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   DocumentReference get _userDocRef {
     final uid = _auth.currentUser!.uid;
-    // --- UPDATED PATH (to match your settings_page) ---
+
     const appId = String.fromEnvironment('app_id', defaultValue: 'default-app-id');
     return _firestore
         .doc('artifacts/$appId/users/$uid/profile/details');
@@ -59,7 +57,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.dispose();
   }
 
-  // --- Premium Button Helper ---
+
   Widget _buildGradientButton({
     required VoidCallback? onPressed,
     required String text,
@@ -109,7 +107,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  // --- Premium Input Field Helper ---
+
   Widget _buildInputField({
     required TextEditingController controller,
     required String label,
@@ -155,7 +153,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  // --- CORE FUNCTIONS (Now with Safety Checks) ---
+
 
   Future<void> _loadUserData() async {
     setState(() { _isLoading = true; });
@@ -276,7 +274,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final newImageUrl = await _uploadImage();
-      // Use .set() with merge: true to safely create/update fields
+
       await _userDocRef.set({
         'name': _nameController.text,
         'profileImageUrl': newImageUrl,
@@ -305,115 +303,75 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     return GradientScaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Edit Profile',
-          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const BackButton(color: Color(0xFF0D47A1)),
-        centerTitle: true,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 16),
-              // Premium Avatar with Camera Badge
-              Center(
-                child: Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                        border: Border.all(color: Colors.white, width: 4),
-                      ),
-                      child: CircleAvatar(
-                        radius: 65,
-                        backgroundColor: Colors.white.withValues(alpha: 0.5),
-                        backgroundImage: _pickedImage != null
-                            ? FileImage(_pickedImage!)
-                            : (_currentImageUrl != null && _currentImageUrl!.isNotEmpty)
-                            ? NetworkImage(_currentImageUrl!)
-                            : null,
-                        child: _pickedImage == null && (_currentImageUrl == null || _currentImageUrl!.isEmpty)
-                            ? const Icon(Icons.person_rounded, size: 70, color: Colors.grey)
-                            : null,
-                      ),
-                    ),
-                    // Edit Badge
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _showImageSourceActionSheet,
-                        borderRadius: BorderRadius.circular(50),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E88E5),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+      appBar: AppBar(title: Text('Edit profile', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w700, fontSize: 18)),
+          centerTitle: true, backgroundColor: Colors.transparent, elevation: 0, leading: BackButton(color: Constants.darkblue)),
+      body: _isLoading ? const Center(child: CircularProgressIndicator()) : SafeArea(child: Form(key: _formKey,
+        child: Column(children: [
+          Expanded(child: SingleChildScrollView(physics: const BouncingScrollPhysics(), padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(width: double.infinity, padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(gradient: kPrimaryGradient, borderRadius: BorderRadius.circular(24)),
+                child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('YOUR ACCOUNT', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                    const SizedBox(height: 9),
+                    const Text('Personal information', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 7),
+                    const Text('Keep your profile details up to date.', style: TextStyle(color: Colors.white, fontSize: 13)),
+                  ])),
+                  const Icon(Icons.account_circle_outlined, color: Colors.white70, size: 46),
+                ]),
               ),
-              const SizedBox(height: 40),
-
-              // Input Fields
-              _buildInputField(
-                controller: _nameController,
-                label: 'Full Name',
-                icon: Icons.person_rounded,
-                validator: (value) => value == null || value.trim().isEmpty ? 'Please enter your name' : null,
-              ),
+              const SizedBox(height: 26),
+              Center(child: Column(children: [
+                Stack(alignment: Alignment.bottomRight, children: [
+                  Container(padding: const EdgeInsets.all(5), decoration: BoxDecoration(shape: BoxShape.circle,
+                      border: Border.all(color: Constants.lightBlue, width: 4)),
+                      child: CircleAvatar(radius: 58, backgroundColor: Constants.lightBlue,
+                          backgroundImage: _pickedImage != null ? FileImage(_pickedImage!) :
+                          (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) ? NetworkImage(_currentImageUrl!) : null,
+                          child: _pickedImage == null && (_currentImageUrl == null || _currentImageUrl!.isEmpty)
+                              ? Icon(Icons.person_rounded, size: 63, color: Constants.darkblue) : null)),
+                  Material(color: Colors.transparent, child: InkWell(onTap: _showImageSourceActionSheet,
+                      borderRadius: BorderRadius.circular(28),
+                      child: Container(padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: Constants.darkblue, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
+                          child: const Icon(Icons.camera_alt_outlined, color: Colors.white, size: 20)))),
+                ]),
+                const SizedBox(height: 10),
+                TextButton.icon(onPressed: _showImageSourceActionSheet, icon: Icon(Icons.edit_outlined, color: Constants.darkblue, size: 18),
+                    label: Text('Change profile photo', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w700))),
+              ])),
               const SizedBox(height: 20),
-
-              _buildInputField(
-                controller: _emailController,
-                label: 'Email Address',
-                icon: Icons.email_rounded,
-                readOnly: true, // Email is not editable
+              Text('Account details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Constants.darkGrey)),
+              const SizedBox(height: 12),
+              Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white,
+                  borderRadius: BorderRadius.circular(22), border: Border.all(color: Constants.darkblue.withValues(alpha: 0.08))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Full name', style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 10),
+                  _buildInputField(controller: _nameController, label: 'Full Name', icon: Icons.person_outline_rounded,
+                      validator: (value) => value == null || value.trim().isEmpty ? 'Please enter your name' : null),
+                  const SizedBox(height: 22),
+                  Text('Email address', style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 10),
+                  _buildInputField(controller: _emailController, label: 'Email Address', icon: Icons.email_outlined, readOnly: true),
+                  const SizedBox(height: 10),
+                  Row(children: [Icon(Icons.lock_outline_rounded, color: Constants.mediumGrey, size: 15),
+                    const SizedBox(width: 5),
+                    Expanded(child: Text('Your email address cannot be edited here.',
+                        style: TextStyle(color: Constants.mediumGrey, fontSize: 12)))]),
+                ]),
               ),
-
-              const SizedBox(height: 48),
-
-              // Save Button
-              _buildGradientButton(
-                onPressed: _saveProfile,
-                text: 'Save Changes',
-                icon: Icons.check_circle_outline_rounded,
-                gradient: kPrimaryGradient,
-              ),
-            ],
-          ),
-        ),
-      ),
+            ]),
+          )),
+          Container(padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.92),
+                  border: Border(top: BorderSide(color: Constants.darkblue.withValues(alpha: 0.08)))),
+              child: _buildGradientButton(onPressed: _saveProfile, text: 'Save changes',
+                  icon: Icons.check_circle_outline_rounded, gradient: kPrimaryGradient, verticalPadding: 16)),
+        ]),
+      )),
     );
   }
 }

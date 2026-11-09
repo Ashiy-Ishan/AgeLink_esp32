@@ -1,10 +1,8 @@
-// lib/device_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'dart:async';
 import 'pair_device_page.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
@@ -67,21 +65,98 @@ class _DevicePageState extends State<DevicePage> {
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.link_off_rounded, color: Colors.redAccent)),
-              const SizedBox(width: 12),
-              const Text('Disconnect Device'),
-            ],
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
           ),
-          content: Text('Are you sure you want to unpair this device? You will stop receiving alerts until you pair a device again.', style: TextStyle(color: Constants.darkGrey, fontSize: 16)),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text('Cancel', style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.bold, fontSize: 16))),
-            ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), elevation: 0), onPressed: () { Navigator.pop(dialogContext); _disconnectDevice(); }, child: const Text('Disconnect', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
-          ],
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Constants.redColor.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.link_off_rounded,
+                      color: Constants.redColor,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Disconnect Device?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Constants.darkGrey,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Are you sure you want to unpair this device? You will stop receiving alerts until you pair a device again.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Constants.mediumGrey,
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(dialogContext);
+                        _disconnectDevice();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Constants.redColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Disconnect',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Constants.darkblue,
+                        side: BorderSide(color: Constants.gradiantBlue),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );
@@ -113,61 +188,66 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
+  Widget _surface({required Widget child, EdgeInsetsGeometry padding = const EdgeInsets.all(20)}) {
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Constants.darkblue.withValues(alpha: 0.08)),
+        boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.045), blurRadius: 22, offset: const Offset(0, 8))],
+      ),
+      child: child,
+    );
+  }
+
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white, width: 2), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 15, offset: const Offset(0, 5))]),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.devices_rounded, size: 64, color: Color(0xFF1E88E5))),
-              const SizedBox(height: 24),
-              Text('No Device Paired', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-              const SizedBox(height: 8),
-              Text('Please pair a pill dispenser to manage its settings and volume here.', textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: Constants.mediumGrey, height: 1.4)),
-              const SizedBox(height: 32),
-              _buildGradientButton(onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const PairDevicePage())); }, text: 'Pair New Device', icon: Icons.bluetooth_searching_rounded, gradient: const LinearGradient(colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)], begin: Alignment.topLeft, end: Alignment.bottomRight)),
-            ],
-          ),
-        ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Your AgeLink device', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: Constants.darkblue)),
+          const SizedBox(height: 6),
+          Text('Manage the pill reminder device for your loved one.', style: TextStyle(fontSize: 14, height: 1.4, color: Constants.mediumGrey)),
+          const SizedBox(height: 24),
+          _surface(child: Column(children: [
+            Container(width: 90, height: 90, decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(28)), child: Icon(Icons.devices_other_rounded, size: 44, color: Constants.darkblue)),
+            const SizedBox(height: 22),
+            Text('No device paired', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Constants.darkGrey)),
+            const SizedBox(height: 8),
+            Text('Pair an AgeLink pill dispenser to check its status and adjust its reminder volume.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, height: 1.5, color: Constants.mediumGrey)),
+            const SizedBox(height: 24),
+            _buildGradientButton(onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const PairDevicePage())); }, text: 'Pair AgeLink Device', icon: Icons.bluetooth_searching_rounded, gradient: kPrimaryGradient),
+          ])),
+        ],
       ),
     );
   }
 
   Widget _buildInfoRow(String label, String value, IconData icon, {Color? valueColor, bool isBadge = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: const Color(0xFF1E88E5).withValues(alpha: 0.1), shape: BoxShape.circle), child: Icon(icon, color: const Color(0xFF1E88E5), size: 20)),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: TextStyle(fontSize: 13, color: Constants.mediumGrey, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                if (isBadge) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: (valueColor ?? Constants.darkGrey).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: valueColor ?? Constants.darkGrey))) else Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: valueColor ?? Constants.darkGrey)),
-              ],
-            ),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(children: [
+        Container(width: 42, height: 42, decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(13)), child: Icon(icon, color: Constants.darkblue, size: 21)),
+        const SizedBox(width: 13),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: TextStyle(fontSize: 12, color: Constants.mediumGrey)),
+          const SizedBox(height: 4),
+          Text(value, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: valueColor ?? Constants.darkGrey)),
+        ])),
+      ]),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_currentUser == null) return const GradientScaffold(body: Center(child: Text("Please log in to manage your device.", style: TextStyle(fontSize: 18))));
+    if (_currentUser == null) return const GradientScaffold(body: Center(child: Text('Please log in to manage your device.')));
 
     return GradientScaffold(
       appBar: AppBar(
-        title: const Text('Device Settings', style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold)),
+        title: Text('Device settings', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w800, fontSize: 19)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: BackButton(color: Constants.darkblue),
@@ -179,7 +259,7 @@ class _DevicePageState extends State<DevicePage> {
         stream: _deviceStream,
         builder: (context, AsyncSnapshot<DatabaseEvent> eventSnapshot) {
           if (eventSnapshot.connectionState == ConnectionState.waiting && !eventSnapshot.hasData) return const Center(child: CircularProgressIndicator());
-          if (eventSnapshot.hasError) return Center(child: Text("Error loading data: ${eventSnapshot.error.toString()}"));
+          if (eventSnapshot.hasError) return Center(child: Text('Error loading data: ${eventSnapshot.error.toString()}'));
           if (!eventSnapshot.hasData || eventSnapshot.data!.snapshot.value == null) return _buildEmptyState();
 
           final dataMap = eventSnapshot.data!.snapshot.value as Map<dynamic, dynamic>;
@@ -191,68 +271,75 @@ class _DevicePageState extends State<DevicePage> {
           final bool isActive = deviceData['device_active'] == true;
           String status = isActive ? 'Online' : 'Offline';
           Color statusColor = isActive ? const Color(0xFF4CAF50) : Colors.redAccent;
-          final String lastSyncString = deviceData['last_sync']?.toString() ?? "N/A";
-          String lastSync = lastSyncString == "N/A" ? "Never" : lastSyncString;
-          try { if (lastSyncString != "N/A") { final parts = lastSyncString.split(':'); final dt = DateTime(2025, 1, 1, int.parse(parts[0]), int.parse(parts[1])); lastSync = "Today at ${TimeOfDay.fromDateTime(dt).format(context)}"; } } catch (e) {}
+          final String lastSyncString = deviceData['last_sync']?.toString() ?? 'N/A';
+          String lastSync = lastSyncString == 'N/A' ? 'Never' : lastSyncString;
+          try { if (lastSyncString != 'N/A') { final parts = lastSyncString.split(':'); final dt = DateTime(2025, 1, 1, int.parse(parts[0]), int.parse(parts[1])); lastSync = 'Today at ${TimeOfDay.fromDateTime(dt).format(context)}'; } } catch (e) {}
 
           final num volumeNum = _parseNum(deviceData['volume'], 0.5);
           final double currentVolume = (volumeNum.toDouble() * 100.0).clamp(0.0, 100.0);
           double sliderValue = _localVolume ?? currentVolume;
 
-          return Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 15, offset: const Offset(0, 5))], border: Border.all(color: Colors.grey.shade100, width: 2)),
-                        child: Column(
-                          children: [
-                            _buildInfoRow('Device ID', deviceName, Icons.memory_rounded),
-                            Divider(color: Colors.grey.shade200, height: 16),
-                            _buildInfoRow('Connection Status', status, isActive ? Icons.wifi_rounded : Icons.wifi_off_rounded, valueColor: statusColor, isBadge: true),
-                            Divider(color: Colors.grey.shade200, height: 16),
-                            _buildInfoRow('Last Synchronized', lastSync, Icons.sync_rounded),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 15, offset: const Offset(0, 5))], border: Border.all(color: Colors.grey.shade100, width: 2)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: const Color(0xFF1E88E5).withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.volume_up_rounded, color: Color(0xFF1E88E5), size: 20)),
-                                const SizedBox(width: 16),
-                                Text('Buzzer Volume', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Constants.darkGrey)),
-                                const Spacer(),
-                                Text('${sliderValue.round()}%', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E88E5))),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            SliderTheme(
-                              data: SliderTheme.of(context).copyWith(trackHeight: 6, activeTrackColor: const Color(0xFF1E88E5), inactiveTrackColor: Colors.blue.shade100, thumbColor: Colors.white, overlayColor: const Color(0xFF1E88E5).withValues(alpha: 0.2), thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14, elevation: 4)),
-                              child: Slider(value: sliderValue, min: 0, max: 100, divisions: 10, onChanged: (value) { setState(() { _localVolume = value; }); }, onChangeEnd: (value) async { await _updateVolume(value); if (mounted) { setState(() { _localVolume = null; }); } }),
-                            ),
-                            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Mute', style: TextStyle(color: Constants.mediumGrey, fontSize: 12, fontWeight: FontWeight.bold)), Text('Max', style: TextStyle(color: Constants.mediumGrey, fontSize: 12, fontWeight: FontWeight.bold))]),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+          return Column(children: [
+            Expanded(child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(22, 12, 22, 20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Your AgeLink device', style: TextStyle(color: Constants.darkblue, fontSize: 27, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text('Connection and reminder settings at a glance', style: TextStyle(color: Constants.mediumGrey, fontSize: 14)),
+                const SizedBox(height: 22),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(gradient: kPrimaryGradient, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Constants.darkblue.withValues(alpha: 0.17), blurRadius: 18, offset: const Offset(0, 8))]),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Container(width: 54, height: 54, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.17), borderRadius: BorderRadius.circular(17)), child: const Icon(Icons.medication_liquid_rounded, size: 29, color: Colors.white)),
+                      const Spacer(),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(30)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(isActive ? Icons.check_circle_rounded : Icons.wifi_off_rounded, color: Colors.white, size: 16), const SizedBox(width: 6), Text(status, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13))])),
+                    ]),
+                    const SizedBox(height: 20),
+                    const Text('PILL REMINDER DEVICE', style: TextStyle(color: Color(0xFFDFEAFF), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                    const SizedBox(height: 6),
+                    Text(deviceName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 9),
+                    Text(isActive ? 'Your device is connected.' : 'Your device is currently offline.', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  ]),
                 ),
-              ),
-              Container(padding: const EdgeInsets.fromLTRB(24, 16, 24, 24), child: _buildGradientButton(onPressed: _showDisconnectConfirmation, text: 'Disconnect Device', icon: Icons.link_off_rounded, gradient: const LinearGradient(colors: [Color(0xFFEF5350), Color(0xFFD32F2F)], begin: Alignment.topLeft, end: Alignment.bottomRight))),
-            ],
-          );
+                const SizedBox(height: 22),
+                Text('Device information', style: TextStyle(color: Constants.darkGrey, fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 12),
+                _surface(child: Column(children: [
+                  _buildInfoRow('Device ID', deviceName, Icons.memory_rounded),
+                  Divider(height: 1, color: Colors.grey.shade200),
+                  _buildInfoRow('Connection status', status, isActive ? Icons.wifi_rounded : Icons.wifi_off_rounded, valueColor: statusColor),
+                  Divider(height: 1, color: Colors.grey.shade200),
+                  _buildInfoRow('Last synchronized', lastSync, Icons.sync_rounded),
+                ])),
+                const SizedBox(height: 22),
+                Text('Reminder settings', style: TextStyle(color: Constants.darkGrey, fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 12),
+                _surface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Container(width: 43, height: 43, decoration: BoxDecoration(color: Constants.lightBlue, borderRadius: BorderRadius.circular(13)), child: Icon(Icons.volume_up_rounded, color: Constants.darkblue)),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('Buzzer volume', style: TextStyle(color: Constants.darkGrey, fontSize: 16, fontWeight: FontWeight.w700))),
+                    Text('${sliderValue.round()}%', style: TextStyle(color: Constants.darkblue, fontSize: 18, fontWeight: FontWeight.w800)),
+                  ]),
+                  const SizedBox(height: 14),
+                  SliderTheme(data: SliderTheme.of(context).copyWith(trackHeight: 5, activeTrackColor: Constants.darkblue, inactiveTrackColor: Constants.lightBlue, thumbColor: Constants.darkblue), child: Slider(value: sliderValue, min: 0, max: 100, divisions: 10, onChanged: (value) { setState(() { _localVolume = value; }); }, onChangeEnd: (value) async { await _updateVolume(value); if (mounted) { setState(() { _localVolume = null; }); } })),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Mute', style: TextStyle(color: Constants.mediumGrey, fontSize: 12)), Text('Maximum', style: TextStyle(color: Constants.mediumGrey, fontSize: 12))]),
+                ])),
+                const SizedBox(height: 16),
+              ]),
+            )),
+            SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(22, 8, 22, 14), child: OutlinedButton.icon(
+              onPressed: _showDisconnectConfirmation,
+              icon: const Icon(Icons.link_off_rounded, size: 20),
+              label: const Text('Disconnect device'),
+              style: OutlinedButton.styleFrom(foregroundColor: Constants.redColor, backgroundColor: Colors.white, minimumSize: const Size(double.infinity, 54), side: BorderSide(color: Constants.redColor.withValues(alpha: 0.4)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+            ))),
+          ]);
         },
       ),
     );
