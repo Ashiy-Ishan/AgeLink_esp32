@@ -1,0 +1,281 @@
+% Compile with XeLaTeX or Tectonic. Requires the TeX Live Lato fonts.
+% Coordinates are in PDF points (bp), measured from the bottom-left.
+% Line breaks are fixed to preserve the original two-page layout.
+% Edit the text inside the braces. Adjust neighboring positions if needed.
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=0pt]{geometry}
+\usepackage{fontspec}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\setmainfont{Lato}[
+  Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-Italic
+]
+\pagestyle{empty}
+
+\definecolor{banner}{rgb}{0.7804,0,0.04315}
+\definecolor{headerlink}{rgb}{0.773,0.902,1}
+\definecolor{bodylink}{rgb}{0.09,0.412,0.667}
+
+% Text at a fixed baseline. Arguments: x, y, font size, style, space width, text.
+\newcommand{\CVText}[6]{%
+  \put(#1,#2){\makebox(0,0)[lb]{\raisebox{0bp}[0bp][0bp]{%
+    \fontsize{#3bp}{12bp}\selectfont #4%
+    \spaceskip=#5bp\relax #6}}}%
+}
+\newcommand{\CVBody}[4]{\CVText{#1}{#2}{9.96264}{}{#3}{#4}}
+\newcommand{\CVBold}[4]{\CVText{#1}{#2}{9.96264}{\bfseries}{#3}{#4}}
+\newcommand{\CVLink}[4]{\CVText{#1}{#2}{9.96264}{\itshape\color{bodylink}}{#3}{#4}}
+\newcommand{\CVHeader}[4]{\CVText{#1}{#2}{9.96264}{\color{white}}{#3}{#4}}
+\newcommand{\CVHeaderLink}[4]{\CVText{#1}{#2}{9.96264}{\itshape\color{headerlink}}{#3}{#4}}
+\newcommand{\CVHeading}[4]{\CVText{#1}{#2}{11.95517}{\bfseries}{#3}{#4}}
+\newcommand{\CVRule}[5]{%
+  \put(#1,#2){\raisebox{-.5\dimexpr#4bp\relax}{\color{#5}\rule{#3bp}{#4bp}}}%
+}
+\newenvironment{CVPage}{%
+  \par\nointerlineskip\noindent\setlength{\unitlength}{1bp}%
+  \begin{picture}(595.28,841.89)%
+}{\end{picture}\par}
+
+\begin{document}
+
+% Page 1
+\begin{CVPage}
+\put(0,612.57189){\color{banner}\rule{595.28327bp}{229.3208bp}}
+\CVText{47.49219}{787.3907}{19.92528}{\bfseries\color{white}}{4.83188}{Ashingshana Ishan Hettiarachchi}
+\CVHeader{48.18957}{765.47289}{2.54047}{Quality Assurance Internship Candidate \textbar{} Colombo, Sri Lanka}
+\CVHeaderLink{48.18957}{745.54761}{2.545}{\href{https://www.linkedin.com/in/ashinshana-ishan}{LinkedIn}}
+\CVHeader{95.26803}{745.54761}{2.545}{\textbar{}}
+\CVHeader{107.73129}{745.54761}{2.55044}{+94 75 942 8249}
+\CVHeader{197.23565}{745.54761}{2.545}{\textbar{}}
+\CVHeaderLink{209.68894}{745.54761}{2.545}{\href{https://www.ashinshanaishan.me}{Portfolio}}
+\CVHeader{257.20078}{745.54761}{2.545}{\textbar{}}
+\CVHeaderLink{269.65906}{745.54761}{2.545}{\href{mailto:ashinshanaishan@gmail.com}{ashinshanaishan@gmail.com}}
+\CVHeader{400.45857}{745.54761}{2.545}{\textbar{}}
+\CVHeaderLink{412.91686}{745.54761}{2.545}{\href{https://github.com/Ashiy-Ishan}{GitHub}}
+\CVHeader{455.39257}{745.54761}{2.545}{\textbar{}}
+\CVHeaderLink{467.85086}{745.54761}{2.545}{\href{https://www.youtube.com/@ashiy_ish/videos}{YouTube}}
+\CVText{48.18957}{721.63727}{11.95517}{\bfseries\color{white}}{2.90511}{PERSONAL STATEMENT}
+\CVHeader{48.18957}{705.34738}{3.02864}{Computing and Information Systems undergraduate seeking a Software Quality Assurance (QA) internship,\hspace{3.14819bp}with a}
+\CVHeader{48.18957}{693.39221}{2.27148}{development background in mobile applications,\hspace{2.31133bp}backend services,\hspace{2.3213bp}and API integration.\hspace{3.29763bp}Interested in understanding}
+\CVHeader{48.18957}{681.43704}{2.51059}{requirements, investigating application behaviour, and identifying edge cases across connected components.\hspace{3.37733bp}Eager}
+\CVHeader{48.18957}{669.48187}{3.09838}{to build practical experience in manual testing,\hspace{3.2279bp}test case design,\hspace{3.23786bp}defect reporting,\hspace{3.21793bp}and test automation,\hspace{3.2279bp}with Play-}
+\CVHeader{47.80103}{657.5267}{3.10834}{wright as a learning focus.\hspace{5.07098bp}Brings analytical thinking,\hspace{3.25778bp}attention to detail,\hspace{3.23786bp}and a collaborative approach to problem}
+\CVHeader{48.18957}{645.57153}{2.55044}{solving, alongside a commitment to clear documentation and continuous learning.}
+
+% EDUCATION
+\CVHeading{45.35433}{589.49137}{2.545}{EDUCATION}
+\CVBold{45.35433}{570.56235}{2.41096}{Sabaragamuwa University of Sri Lanka}
+\CVBold{487.09687}{570.56235}{2.545}{2024–Present}
+\CVBody{45.35434}{558.60718}{2.54047}{BSc (Hons) in Computing and Information Systems}
+\CVBold{45.35432}{543.66322}{2.41096}{Bandaranayake College Gampaha}
+\CVBold{497.91629}{543.66322}{2.545}{2014–2022}
+\CVBody{45.35433}{531.70805}{2.54047}{G.C.E. (Advanced Level) Examination – Physical Science Stream}
+
+% TECHNICAL SKILLS
+\CVHeading{45.35433}{510.38801}{2.89315}{TECHNICAL SKILLS}
+\CVBold{59.52755}{492.10155}{2.41096}{Testing Tools:}
+\CVBody{122.75876}{492.10155}{2.54047}{Postman (API testing), Selenium, JUnit; Playwright (learning focus)}
+\CVBold{59.52755}{474.99863}{3.24782}{QA Learning Goals:}
+\CVBody{151.38085}{474.99863}{3.43711}{Test case design,\hspace{3.65629bp}test planning;\hspace{3.87547bp}functional,\hspace{3.65629bp}regression,\hspace{3.64633bp}integration and exploratory testing;}
+\CVBody{59.52755}{463.04346}{2.54047}{defect reporting and tracking with Jira}
+\CVBold{59.52755}{445.94053}{2.545}{Programming:}
+\CVBody{124.90073}{445.94053}{2.54047}{Python, Java, JavaScript, TypeScript, Dart, C/C++, PHP}
+\CVBold{59.52755}{428.8376}{2.545}{Databases:}
+\CVBody{111.48106}{428.8376}{2.54047}{SQL, PostgreSQL, MySQL, MongoDB, Firebase, Redis}
+\CVBold{59.52755}{411.73468}{2.41096}{Application Development:}
+\CVBody{178.58938}{411.73468}{2.54047}{Flutter, React, Next.js, Flask, FastAPI, REST API integration}
+\CVBold{59.52755}{394.63175}{2.41096}{Development Tools:}
+\CVBody{150.89326}{394.63175}{2.54047}{Git, GitHub, Docker, Linux; Windows and macOS}
+\CVBold{59.52755}{377.52881}{2.41096}{Supporting Skills:}
+\CVBody{139.53585}{377.52881}{2.54047}{Technical troubleshooting, technical documentation, analytical problem solving}
+
+% PROJECTS
+\CVHeading{45.35433}{356.60727}{2.545}{PROJECTS}
+\CVBold{45.35433}{334.2411}{2.41096}{Lumina Instant Messaging (Individual)}
+\CVBold{500.75067}{334.2411}{2.41096}{In Progress}
+\CVBody{48.76789}{320.12697}{2.545}{•}
+\CVBold{59.52755}{320.12697}{2.545}{Description:}
+\CVBody{123.64662}{320.12697}{3.33748}{Developing a Flutter messaging application with direct messages,\hspace{3.51681bp}room-based channels,\hspace{3.53674bp}and live}
+\CVBody{59.52755}{308.1718}{2.6401}{presence indicators.\hspace{3.68618bp}Implemented offline-first caching and persistent socket connections, connecting application}
+\CVBody{59.52755}{296.21663}{2.54047}{state with real-time events and stored data.}
+\CVBody{48.76789}{280.10997}{2.545}{•}
+\CVBold{59.52755}{280.10997}{2.41096}{Technology Stack:}
+\CVBody{145.985}{280.10997}{2.54047}{Flutter, Dart, Node.js, Socket.io, PostgreSQL, Redis, Docker}
+\CVBody{48.76789}{264.0033}{2.545}{•}
+\CVBold{59.52755}{264.0033}{2.545}{Role:}
+\CVBody{88.48562}{264.0033}{2.54047}{Full-Stack \& Systems Engineer}
+\CVBody{48.76789}{247.89665}{2.545}{•}
+\CVBold{59.52755}{247.89665}{2.545}{Project:}
+\CVLink{97.23447}{247.89665}{2.545}{\href{https://github.com/Ashiy-Ishan/Lumina-Instant-android}{GitHub}}
+\CVBold{45.35433}{229.79745}{2.41096}{ShortM (Individual)}
+\CVBold{487.09687}{229.79745}{2.545}{2026–Present}
+\CVBody{48.76789}{215.68331}{2.545}{•}
+\CVBold{59.52755}{215.68331}{2.545}{Description:}
+\CVBody{124.00874}{215.68331}{3.42715}{Developing a desktop utility that connects video production,\hspace{3.63636bp}subtitle generation,\hspace{3.63636bp}and direct API}
+\CVBody{59.52755}{203.72814}{2.38107}{uploading in one workflow.\hspace{3.33748bp}Integrated a Python/Flask backend with the interface to automate repetitive content-}
+\CVBody{59.52755}{191.77297}{2.54047}{management tasks.}
+\CVBody{48.76789}{175.66631}{2.545}{•}
+\CVBold{59.52755}{175.66631}{2.41096}{Technology Stack:}
+\CVBody{145.985}{175.66631}{2.55044}{HTML, CSS, JS, Python, Flask}
+\CVBody{48.76789}{159.55965}{2.545}{•}
+\CVBold{59.52755}{159.55965}{2.545}{Role:}
+\CVBody{88.48562}{159.55965}{2.54047}{Full Stack Developer}
+\CVBody{48.76789}{143.45298}{2.545}{•}
+\CVBold{59.52755}{143.45298}{2.545}{Project:}
+\CVLink{97.23447}{143.45298}{2.545}{\href{https://github.com/Ashiy-Ishan/ShortsM}{GitHub}}
+\CVBold{45.35433}{125.35379}{2.41096}{Smart AI Alarm System (Group)}
+\CVBold{526.80796}{125.35379}{2.545}{2026}
+\CVBody{48.76789}{111.23966}{2.545}{•}
+\CVBold{59.52755}{111.23966}{2.545}{Description:}
+\CVBody{121.2453}{111.23966}{2.73973}{Collaborated on an alarm system integrating a Flutter application,\hspace{2.76961bp}Python/Flask backend,\hspace{2.77958bp}Firebase,}
+\CVBody{59.52755}{99.28449}{3.76588}{and ESP32 hardware.}
+\CVBody{162.20252}{99.28449}{3.76588}{Contributed to full-stack,\hspace{4.07472bp}machine-learning,\hspace{4.07472bp}and IoT development to calculate wake-up}
+\CVBody{59.52755}{87.32932}{2.55044}{schedules using sleep cycles, weather, traffic, and calendar events.}
+\CVBody{48.76789}{71.22266}{2.545}{•}
+\CVBold{59.52755}{71.22266}{2.41096}{Technology Stack:}
+\CVBody{145.985}{71.22266}{2.54047}{Flutter, Dart, Python, Flask, ESP32, Firebase, LightGBM}
+\CVBody{48.76789}{55.11599}{2.545}{•}
+\CVBold{59.52755}{55.11599}{2.545}{Role:}
+\CVBody{88.48562}{55.11599}{2.54047}{Full Stack Developer, AI/ML Developer, IoT Developer}
+\CVBody{48.76789}{39.00934}{2.545}{•}
+\CVBold{59.52755}{39.00934}{2.545}{Project:}
+\CVLink{97.23447}{39.00934}{2.545}{\href{https://github.com/Ashiy-Ishan/Smart_AI_Alarm}{GitHub}}
+
+% Section rules and project underlines
+\CVRule{48.18957}{719.30006}{498.89769}{0.49813}{white}
+\CVRule{45.35433}{584.1115}{504.56695}{0.3985}{black}
+\CVRule{45.35433}{505.00815}{504.56695}{0.3985}{black}
+\CVRule{45.35433}{351.2274}{504.56695}{0.3985}{black}
+\CVRule{45.35433}{331.04816}{166.10211}{0.39848}{black}
+\CVRule{45.35433}{226.82866}{84.74222}{0.39848}{black}
+\CVRule{45.35433}{122.29035}{137.0361}{0.39848}{black}
+\end{CVPage}
+
+% Page 2
+\newpage
+\begin{CVPage}
+\CVBold{45.35433}{789.43369}{2.41096}{Trust Bubble (Group)}
+\CVBold{526.80796}{789.43369}{2.545}{2025}
+\CVBody{48.76789}{775.37676}{2.545}{•}
+\CVBold{59.52755}{775.37676}{2.545}{Description:}
+\CVBody{121.95975}{775.37676}{2.90909}{Contributed to an Android application that analyses screen content and news reliability through a}
+\CVBody{59.52755}{763.42159}{1.99253}{floating-bubble interface.\hspace{3.20797bp}Connected Android functionality with Python/FastAPI backend services and the Gemini}
+\CVBody{59.18882}{751.46642}{2.55044}{API as part of a group project.}
+\CVBody{48.76789}{735.41697}{2.545}{•}
+\CVBold{59.52755}{735.41697}{2.41096}{Technology Stack:}
+\CVBody{145.985}{735.41697}{2.54047}{Kotlin, Python, FastAPI, Google Gemini API}
+\CVBody{48.76789}{719.36751}{2.545}{•}
+\CVBold{59.52755}{719.36751}{2.545}{Role:}
+\CVBody{88.48562}{719.36751}{2.54047}{Android Developer, AI/ML Developer, Backend Developer}
+\CVBody{48.76789}{703.31806}{2.545}{•}
+\CVBold{59.52755}{703.31806}{2.545}{Project:}
+\CVLink{97.23447}{703.31806}{2.545}{\href{https://github.com/Ashiy-Ishan/Bubble_Trust}{GitHub}}
+\CVBold{45.35433}{685.27607}{2.41096}{AgeLink (Group)}
+\CVBold{526.80796}{685.27607}{2.545}{2025}
+\CVBody{48.76789}{671.21913}{2.545}{•}
+\CVBold{59.52755}{671.21913}{2.545}{Description:}
+\CVBody{123.8526}{671.21913}{3.3873}{Contributed embedded and Android development to an elderly-care system with pill scheduling,}
+\CVBody{59.26853}{659.26396}{3.10834}{voice alerts,\hspace{3.24782bp}SOS dispatch,\hspace{3.23786bp}and Firebase synchronisation.\hspace{5.07098bp}Connected ESP32 hardware,\hspace{3.23786bp}wireless communication,}
+\CVBody{59.52755}{647.30879}{2.54047}{and cloud services for family tracking and remote management.}
+\CVBody{48.76789}{631.25935}{2.545}{•}
+\CVBold{59.52755}{631.25935}{2.41096}{Technology Stack:}
+\CVBody{145.985}{631.25935}{2.54047}{ESP32, C/C++, Arduino, Firebase, GSM/2G, Wi-Fi, I2S, NTP, Flutter}
+\CVBody{48.76789}{615.20988}{2.545}{•}
+\CVBold{59.52755}{615.20988}{2.545}{Role:}
+\CVBody{88.48562}{615.20988}{2.54047}{IoT / Embedded Systems Developer / Android Developer}
+\CVBody{48.76789}{599.16043}{2.545}{•}
+\CVBold{59.52755}{599.16043}{2.545}{Project:}
+\CVLink{97.23447}{599.16043}{2.545}{\href{https://github.com/Ashiy-Ishan/AgeLink_esp32}{GitHub}}
+
+% ACHIEVEMENTS & COMPETITIONS
+\CVHeading{45.35433}{578.23889}{2.89913}{ACHIEVEMENTS \& COMPETITIONS}
+\CVBold{45.00563}{559.85777}{2.41096}{Awards (Group)}
+\CVBody{54.43718}{545.80084}{2.55044}{•\hspace{4.68245bp}TensorForge AI Buildathon – 2025:}
+\CVBold{220.56255}{545.80084}{2.42092}{1st Runner-Up}
+\CVBold{45.35433}{531.7439}{2.41096}{Finalist \& Recognition (Group)}
+\CVBody{54.43718}{517.68698}{2.55044}{•\hspace{4.98133bp}Hackelite 3.0 – 2026:}
+\CVBold{162.29106}{517.68698}{2.41594}{Top 12 Finalist}
+\CVBody{54.43718}{501.63752}{2.55044}{•\hspace{4.68245bp}TensorForge 2.0 – 2026:}
+\CVBold{174.9486}{501.63752}{2.41096}{Outstanding Performance}
+\CVBody{54.43718}{485.58807}{2.55044}{•\hspace{4.98133bp}HackX 10.0 – 2025:}
+\CVBold{156.00961}{485.58807}{2.41096}{Finalist \& Most Popular Team}
+\CVBody{54.43718}{469.5386}{2.55044}{•\hspace{4.98133bp}Code Quest v1.0 – 2025:}
+\CVBold{178.87387}{469.5386}{2.41096}{Top 10 Finalist Team}
+
+% SOFT SKILLS
+\CVHeading{45.35433}{448.61706}{2.90511}{SOFT SKILLS}
+\CVBold{45.35433}{429.68804}{2.545}{•}
+\CVBody{53.6831}{429.68804}{2.545}{Teamwork}
+\CVBold{303.61539}{429.68804}{2.545}{•}
+\CVBody{311.94416}{429.68804}{2.545}{Leadership}
+\CVBold{45.35433}{415.74034}{2.545}{•}
+\CVBody{53.6831}{415.74034}{2.54047}{Positive Attitude}
+\CVBold{303.61539}{415.74034}{2.545}{•}
+\CVBody{311.94416}{415.74034}{2.54047}{Communication Skills}
+\CVBold{45.35433}{401.79264}{2.545}{•}
+\CVBody{53.6831}{401.79264}{2.545}{Adaptability}
+\CVBold{303.61539}{401.79264}{2.545}{•}
+\CVBody{311.94416}{401.79264}{2.545}{Dedication}
+\CVBold{45.35433}{387.84494}{2.545}{•}
+\CVBody{53.6831}{387.84494}{2.55044}{Critical Thinking and Multitasking}
+\CVBold{303.61539}{387.84494}{2.545}{•}
+\CVBody{311.94416}{387.84494}{2.54047}{Attention to Detail}
+\CVBold{45.35433}{373.89724}{2.545}{•}
+\CVBody{53.6831}{373.89724}{2.545}{Creativity}
+\CVBold{303.61539}{373.89724}{2.545}{•}
+\CVBody{311.94416}{373.89724}{2.54047}{Problem Solving}
+
+% CERTIFICATIONS
+\CVHeading{45.35433}{340.62205}{2.545}{CERTIFICATIONS}
+\CVBody{48.76789}{322.72412}{2.55044}{•\hspace{4.98133bp}Python Basics Certificates}
+\CVLink{276.28742}{322.72412}{2.3213}{\href{https://www.hackerrank.com/certificates/945bb823f36d}{HACKER RANK}}
+\CVLink{353.47296}{322.72412}{2.3213}{\href{https://www.credly.com/badges/597e3339-e9af-4a59-a028-18887fb3f270/public_url}{CISCO NETWORKING ACADEMY}}
+\CVLink{507.16163}{322.72412}{2.545}{\href{https://www.linkedin.com/learning/certificates/6ccb80d6c997f1222a753fe32e0db63cccfdfac1fd9b3bc0063458f742ebd809}{LINKEDIN}}
+\CVBody{48.76789}{305.67841}{2.54047}{•\hspace{4.98133bp}Introduction to Cyber Security}
+\CVLink{408.74569}{305.67841}{2.3213}{\href{https://www.credly.com/badges/ae2bf5f5-d932-46b6-841b-bd600738a4e0/public_url}{CISCO NETWORKING ACADEMY}}
+\CVBody{48.76789}{288.63268}{2.54047}{•\hspace{4.7721bp}Java Basics Certificates}
+\CVLink{485.24881}{288.63268}{2.3213}{\href{https://www.hackerrank.com/certificates/2ac3062a4f60}{HACKER RANK}}
+\CVBody{48.76789}{271.58695}{2.55044}{•\hspace{4.98133bp}SQL Basic and Intermediate}
+\CVLink{485.24881}{271.58695}{2.3213}{\href{https://www.hackerrank.com/profile/ashinshanaishan}{HACKER RANK}}
+\CVBody{48.76789}{254.54124}{2.54545}{•\hspace{4.6426bp}AWS Cloud Practitioner Essentials}
+\CVLink{437.06448}{254.54124}{2.3213}{\href{https://drive.google.com/file/d/1xquMc8mAj9-un3fk2hqLMlDexTSONt8e/view}{AWS CLOUD CERTIFICATE}}
+
+% EXTRA-CURRICULAR ACTIVITIES
+\CVHeading{45.35433}{233.6197}{2.90511}{EXTRA-CURRICULAR ACTIVITIES}
+\CVBody{48.76789}{215.65703}{2.545}{•}
+\CVBold{59.52755}{215.65703}{2.42092}{Video Editor and Videographer:}
+\CVBold{62.94111}{199.49834}{2.545}{–}
+\CVBody{73.70076}{199.49834}{2.54047}{Rotaract Member Installation 2026, Sabaragamuwa University of Sri Lanka (SUSL)}
+\CVBold{62.94111}{186.43767}{2.545}{–}
+\CVBody{73.70076}{186.43767}{2.54047}{Rotaract Book Donation 2025, Sabaragamuwa University of Sri Lanka (SUSL)}
+\CVBold{62.94111}{173.37699}{2.545}{–}
+\CVBody{73.70076}{173.37699}{2.54545}{Innovax 1.0 Competition 2026, SUSL}
+\CVBody{48.76789}{157.2183}{2.545}{•}
+\CVBold{59.52755}{157.2183}{2.41096}{Student Member:}
+\CVBold{62.94111}{141.05962}{2.545}{–}
+\CVBody{73.70076}{141.05962}{2.54047}{IEEE Student Branch, SUSL}
+
+% REFERENCES
+\CVHeading{45.35433}{120.13807}{2.545}{REFERENCES}
+\CVBold{45.35433}{101.20905}{2.81943}{Mrs.\hspace{3.21793bp}PKDK\hspace{2.42092bp}Kaushalya}
+\CVBold{303.61539}{101.20905}{2.41096}{Mr.\hspace{3.20797bp}Dinusha Gayan Jayawardena}
+\CVBody{45.35433}{86.26509}{2.54047}{Lecturer (Probationary), Faculty of Computing,}
+\CVBody{303.61539}{86.26509}{2.54047}{Senior Software Engineer, IFS Sri Lanka}
+\CVBody{45.35433}{74.30992}{2.54047}{Sabaragamuwa University of Sri Lanka}
+\CVBody{303.61539}{74.30992}{2.54545}{Level 18, Orion Tower 1, Orion City IT Park,}
+\CVBody{303.61539}{62.35475}{2.54047}{Colombo 9, Sri Lanka}
+\CVLink{45.35433}{47.4108}{2.545}{\href{mailto:kaushalya@foc.sab.ac.lk}{kaushalya@foc.sab.ac.lk}}
+\CVLink{303.61539}{47.4108}{2.545}{\href{mailto:dinusha.jayawardena@ifs.com}{dinusha.jayawardena@ifs.com}}
+\CVBody{45.35433}{35.45563}{2.55044}{Tel:\hspace{3.39726bp}+94 71 706 3574}
+\CVBody{303.61539}{35.45563}{2.55044}{Tel:\hspace{3.39726bp}+94 71 539 5520}
+
+% Section rules and project underlines
+\CVRule{45.35433}{786.37026}{91.1432}{0.39848}{black}
+\CVRule{45.35433}{682.08313}{71.07347}{0.39848}{black}
+\CVRule{45.35433}{572.85902}{504.56695}{0.3985}{black}
+\CVRule{45.35433}{443.23719}{504.56695}{0.3985}{black}
+\CVRule{45.35433}{335.24218}{504.56695}{0.3985}{black}
+\CVRule{45.35433}{228.23983}{504.56695}{0.3985}{black}
+\CVRule{45.35433}{114.75821}{504.56695}{0.3985}{black}
+\end{CVPage}
+\end{document}

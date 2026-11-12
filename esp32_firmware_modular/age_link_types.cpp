@@ -4,8 +4,6 @@
 ReminderState currentState      = IDLE;
 unsigned long stateChangeTime       = 0;
 unsigned long lastDBCheckTime       = 0;
-unsigned long lastScheduleSaveTime  = 0;
-unsigned long lastSosPressTime      = 0;
 unsigned long lastWifiCheck         = 0;
 unsigned long greenButtonPressTime  = 0;
 unsigned long lastTimeLog           = 0;
@@ -16,13 +14,13 @@ bool deviceConnected = false;
 bool configComplete  = false;
 
 String currentMedicineName = "";
-EmergencyContact contacts[MAX_CONTACTS];
-int contactCount = 0;
+String currentMedicineDosage;
+String currentMedicineTime;
+std::vector<EmergencyContact> contacts;
 float currentVolume = 0.3f; // Default 30% volume
 
 String nextMedicineTime  = "--:--";
 String nextMedicineName  = "None";
-String lastConfirmedTime = "";
 
 // Credentials and Paths
 String wifi_ssid       = "";
@@ -55,6 +53,20 @@ void resetRuntimeState() {
     currentState = IDLE;
     stateChangeTime = 0;
     currentMedicineName = "";
-    lastConfirmedTime = "";
     isResetting = false;
+}
+
+String normalizeEmergencyPhone(String number) {
+    number.trim();
+    number.replace(" ", "");
+    number.replace("-", "");
+    number.replace("(", "");
+    number.replace(")", "");
+    const size_t start = number.startsWith("+") ? 1 : 0;
+    const size_t digits = number.length() - start;
+    if (digits < 7 || digits > 15) return "";
+    for (size_t i = start; i < number.length(); ++i) {
+        if (!isDigit(number[i])) return "";
+    }
+    return number;
 }

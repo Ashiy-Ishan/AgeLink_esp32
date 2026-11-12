@@ -1,15 +1,11 @@
 #pragma once
 
 #include <Arduino.h>
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
 #include "age_link_config.h"
 
 // =============================================================================
 // Hardware & Display Peripherals Manager
 // =============================================================================
-
-extern LiquidCrystal_I2C lcd;
 
 /**
  * @brief Configures GPIO pin modes for status LEDs and input buttons.
@@ -36,24 +32,9 @@ bool isMedButtonPressed();
  */
 bool isSosButtonPressed();
 
-/**
- * @brief Initializes the I2C bus and the 16x2 LCD display.
- */
-void initLCD();
-
-/**
- * @brief Updates the LCD text conditionally to eliminate flicker and glitching.
- * @param line1 Top row text (trimmed to 16 characters).
- * @param line2 Bottom row text (trimmed to 16 characters).
- */
-void updateLCD(const String& line1, const String& line2);
-
-/**
- * @brief Forces a clear and redraw of both LCD lines.
- */
-void forceRefreshLCD(const String& line1, const String& line2);
-
-/**
- * @brief Clears LCD display buffer.
- */
-void clearLCD();
+// 128x64 OLED screens. Signal bars are based on Wi-Fi, not the modem.
+void initOLED();
+void showOLED(const String& title, const String& headline,
+              const String& detail = "", const String& hint = "");
+void showHomeOLED(const String& currentTime, const String& nextTime,
+                  const String& medicineName, bool wifiConnected, int32_t wifiRssi);

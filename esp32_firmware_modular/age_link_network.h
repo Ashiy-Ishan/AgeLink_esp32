@@ -25,9 +25,11 @@ void initWiFi();
 void handleWiFiReconnect();
 
 /**
- * @brief Configures SNTP client and blocks safely until valid UTC/local time is synced.
+ * @brief Starts SNTP synchronization in the background.
  */
 void initNTP();
+bool clockSyncDelayed();
+void retryClockSync();
 
 /**
  * @brief Updates local struct tm timeinfo.
@@ -54,7 +56,7 @@ void fetchDeviceSettings();
 /**
  * @brief Downloads user emergency contacts from Firebase and syncs to local storage.
  */
-void fetchEmergencyContact();
+bool fetchEmergencyContact();
 
 /**
  * @brief Compares current local time against daily medication schedule.
@@ -62,7 +64,7 @@ void fetchEmergencyContact();
  * @param currentTime Current time in HH:MM format.
  * @return true if an alarm was activated during this check, false otherwise.
  */
-bool checkScheduledTime(const String& currentTime);
+bool checkScheduledTime(const String& currentTime, bool allowStart = true);
 
 /**
  * @brief Pushes medicine ingestion confirmation record to Firebase RTDB.

@@ -32,13 +32,12 @@ class AgeLinkCharacteristicCallbacks : public BLECharacteristicCallbacks {
         if (value_std.length() > 0) {
             Serial.println(F("****************************************"));
             Serial.println(F("[BLE] Provisioning Data Received:"));
-            Serial.println(value_std.c_str());
             Serial.println(F("****************************************"));
 
             // Check for factory reset command
             if (value_std.find("delete_config") != std::string::npos) {
                 Serial.println(F("[BLE] Factory Reset command recognized!"));
-                updateLCD("RESETTING...", "Erasing files...");
+                showOLED("SETUP", "Factory reset", "Erasing settings");
                 deleteConfigurationFiles();
                 delay(2000);
                 ESP.restart();
@@ -85,13 +84,19 @@ void startBLEProvisioning() {
 
 void runBLEProvisioningMode() {
     Serial.println(F("[PROVISIONING] Entering Provisioning Mode. Awaiting BLE config..."));
-    updateLCD("App Setup Req.", "Open AgeLink App");
+    showOLED("BLUETOOTH SETUP", "Pair AgeLink", "Open the AgeLink app", BLE_DEVICE_NAME);
     startBLEProvisioning();
 
     unsigned long lastBlinkToggle = millis();
     bool ledState = false;
 
     while (!configComplete) {
+        if (deviceConnected) {
+            showOLED("BLUETOOTH SETUP", "Phone connected", "Enter Wi-Fi details", "in the AgeLink app");
+        } else {
+            showOLED("BLUETOOTH SETUP", "Pair AgeLink", "Open the AgeLink app", BLE_DEVICE_NAME);
+        }
+
         if (millis() - lastBlinkToggle >= 800) {
             lastBlinkToggle = millis();
             ledState = !ledState;
@@ -102,7 +107,7 @@ void runBLEProvisioningMode() {
 
     setLEDs(false, false, false);
     Serial.println(F("[PROVISIONING] Config received! Restarting device in 3s..."));
-    updateLCD("Config Received", "Restarting...");
+    showOLED("BLUETOOTH SETUP", "Settings saved", "Restarting device");
     delay(3000);
     ESP.restart();
 }

@@ -35,15 +35,15 @@ void setup() {
     // 3. Initialize I2S Audio Driver
     initAudio();
 
-    // 4. Initialize LCD Display
-    initLCD();
-    updateLCD("System Booting", "Loading Config...");
+    // 4. Initialize the OLED
+    initOLED();
+    showOLED("AGELINK", "Starting", "Loading settings");
     delay(1000);
 
     // 5. Load Stored Credentials & Configuration
     if (loadConfiguration()) {
         Serial.println(F("[SETUP] Configuration loaded successfully from LittleFS."));
-        updateLCD("Config OK", "SIM800L Init...");
+        showOLED("AGELINK", "Starting", "Checking modem");
     } else {
         Serial.println(F("[SETUP] Configuration missing or invalid. Launching BLE Provisioning..."));
         runBLEProvisioningMode();
@@ -55,100 +55,93 @@ void setup() {
 
     // 7. Initialize Wi-Fi Connection
     initWiFi();
+    initNTP();
 
     // 8. Initialize Firebase RTDB Connection
     initFirebase();
 
-    // 9. Online Initialization Sequence
-    if (!offlineMode) {
-        playWavFile(SOUND_POWER_UP);
-        playWavFile(SOUND_WIFI_CONNECTED);
-        updateLCD("WiFi Connected", "NTP Sync...");
-
-        waitForAudioToFinish(5000);
-
-        initNTP();
-        updateLCD("Time Sync OK", "Data Fetching...");
-
-        fetchEmergencyContact();
-        saveContactsToFile();
-
-        Serial.println(F("[SETUP] Performing initial schedule evaluation..."));
-        checkScheduledTime(getCurrentTimeFormatted());
-        updateLCD("Ready!", "Next: " + nextMedicineTime);
-    } else {
-        // Fallback for offline mode
-        updateLCD("OFFLINE MODE", "SOS Only");
-        if (!loadContactsFromFile()) {
-            contacts[0].name  = "Emergency";
-            contacts[0].phone = "0763777417";
-            contactCount      = 1;
-            Serial.println(F("[SETUP] Fallback offline emergency contact activated."));
-        }
-    }
-
-    delay(1500);
+    loadContactsFromFile();
+    playWavFile(offlineMode ? SOUND_POWER_UP : SOUND_WIFI_CONNECTED);
 }
 
 void loop() {
-    // 0. Hardware Lock during factory reset wipe
     if (isResetting) {
         return;
     }
 
-    // 1. Process Audio Pipeline (Highest non-blocking priority)
     audioLoop();
-
-    // 2. Wi-Fi Status Check & Background Reconnection
+    static bool wasInSOS = false;
+    if (updateSOS()) {
+        wasInSOS = true;
+        if (millis() - lastDBCheckTime >= DB_CHECK_INTERVAL_MS && updateLocalTime()) {
+            lastDBCheckTime = millis();
+            checkScheduledTime(getCurrentTimeFormatted(), false);
+        }
+        delay(15);
+        return;
+    }
+    if (wasInSOS) {
+        wasInSOS = false;
+        stateChangeTime = millis();
+        if (currentState == GREEN_ACTIVE || currentState == ORANGE_ACTIVE || currentState == RED_ACTIVE) {
+            startAlarmSequence(currentState);
+        } else if (currentState == CONFIRMED) {
+            showOLED("DOSE CONFIRMED", "Marked as taken", currentMedicineName);
+        }
+    }
     handleWiFiReconnect();
 
-    // 3. OFFLINE MODE Execution Branch
-    if (offlineMode) {
-        updateLCD("OFFLINE MODE", "SOS Only");
-        checkSosButton();
+    static bool contactsSynced = false;
+    static bool contactSyncAttempted = false;
+    static unsigned long lastContactSync = 0;
+    if (offlineMode || !Firebase.ready()) {
+        contactSyncAttempted = false;
+    } else if (currentState == IDLE &&
+               (!contactSyncAttempted || millis() - lastContactSync >= (contactsSynced ? 15000 : 5000))) {
+        contactsSynced = fetchEmergencyContact();
+        lastContactSync = millis();
+        contactSyncAttempted = true;
+    }
+
+    if (!updateLocalTime()) {
+        const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+        if (wifiConnected) {
+            showOLED("WI-FI CONNECTED", "Syncing clock",
+                     clockSyncDelayed() ? "Check internet" : "Getting network time",
+                     "SOS available");
+            retryClockSync();
+        } else {
+            showOLED("CLOCK NOT SET", "Waiting for Wi-Fi", "Reminders paused", "SOS available");
+        }
+        checkFactoryResetButton();
         delay(40);
         return;
     }
 
-    // 4. ONLINE MODE Execution Branch
-    if (!Firebase.ready()) {
-        delay(500);
-        return;
-    }
-
-    // Update local clock time
-    if (!updateLocalTime()) {
-        return;
-    }
-
     String currentTime = getCurrentTimeFormatted();
+    static bool clockWasReady = false;
+    if (!clockWasReady) {
+        clockWasReady = true;
+        lastDBCheckTime = millis() - DB_CHECK_INTERVAL_MS;
+        Serial.print(F("[CLOCK] Local time ready: "));
+        Serial.println(currentTime);
+    }
 
     // Periodic time logging
     if (millis() - lastTimeLog >= TIME_LOG_INTERVAL_MS) {
         lastTimeLog = millis();
     }
 
-    // 5. Update Idle / Missed Screen on LCD
-    if (currentState == IDLE || currentState == MISSED) {
-        if (currentState == MISSED) {
-            updateLCD("Medication", "MISSED!");
-        } else {
-            String volStr = "Vol:" + String((int)(currentVolume * 100));
-            String line1  = currentTime;
-            while (line1.length() + volStr.length() < LCD_COLUMNS) {
-                line1 += " ";
-            }
-            line1 += volStr;
-            String line2  = nextMedicineName + ":" + nextMedicineTime;
-            updateLCD(line1, line2);
-        }
+    if (currentState == IDLE) {
+        const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+        showHomeOLED(currentTime, nextMedicineTime, nextMedicineName,
+                     wifiConnected, wifiConnected ? WiFi.RSSI() : 0);
+    } else if (currentState == MISSED) {
+        showOLED("DOSE MISSED", currentMedicineName, "No confirmation", "Due " + currentMedicineTime);
     }
 
     // 6. Reminder State Machine & Ingestion Timers
     runSchedulerStateMachine();
-
-    // 7. Check Emergency SOS Button
-    checkSosButton();
 
     delay(40);
 }

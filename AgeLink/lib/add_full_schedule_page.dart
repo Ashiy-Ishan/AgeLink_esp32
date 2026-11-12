@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 import 'custom_snackbar.dart';
+import 'schedule_sync_service.dart';
 
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
@@ -45,108 +43,6 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
   bool _isLoading = false;
 
   final User? _currentUser = FirebaseAuth.instance.currentUser;
-  late final DatabaseReference _remindersRef;
-
-  @override
-  void initState() {
-    super.initState();
-    if (_currentUser != null) {
-      _remindersRef = FirebaseDatabase.instanceFor(
-          app: Firebase.app(),
-          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
-      ).ref('reminders/${_currentUser?.uid}');
-    }
-  }
-
-  Widget _buildGradientButton({
-    required VoidCallback? onPressed,
-    required String text,
-    IconData? icon,
-    required Gradient gradient,
-    double verticalPadding = 18.0,
-  }) {
-    final bool isEnabled = onPressed != null;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16.0),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          disabledBackgroundColor: Colors.transparent,
-          elevation: 0,
-        ),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: isEnabled
-                ? gradient
-                : LinearGradient(
-              colors: [Constants.mediumGrey, Constants.mediumGrey.withValues(alpha: 0.7)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: verticalPadding),
-            alignment: Alignment.center,
-            child: (icon != null)
-                ? Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white, size: 22),
-                const SizedBox(width: 8),
-                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
-              ],
-            )
-                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? Function(String?)? validator,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: controller,
-        validator: validator,
-        style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w500),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: Constants.mediumGrey, fontSize: 14),
-          prefixIcon: Icon(icon, color: const Color(0xFF1E88E5)),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.transparent,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        ),
-      ),
-    );
-  }
-
   void _addMedicationRow() {
     setState(() {
       _medicationEntries.add(_MedicationEntry());
@@ -200,78 +96,46 @@ class _AddFullSchedulePageState extends State<AddFullSchedulePage> {
 
   Future<void> _saveSchedule() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_currentUser == null) return;
+    final user = _currentUser;
+    if (user == null) return;
 
     setState(() { _isLoading = true; });
-
     try {
-      final Map rtdbScheduleObject = {};
-      final List firestoreMedicationsList = [];
-
-      for (var entryObj in _medicationEntries) {
-        final entry = entryObj as _MedicationEntry;
-        if (entry.name.text.isNotEmpty && entry.times.isNotEmpty) {
-          final List timesList = [];
-
-          for (var timeObj in entry.times) {
-            final time = timeObj as TimeOfDay;
-            String timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-            final String safeName = entry.name.text.replaceAll(' ', '_');
-            String key = "${safeName}_${timeStr.replaceAll(":", "")}";
-
-            rtdbScheduleObject[key] = {
-              'name': entry.name.text,
-              'dosage': entry.dosage.text,
-              'time': timeStr,
-            };
-
-            timesList.add(timeStr);
-          }
-
-          firestoreMedicationsList.add({
-            'name': entry.name.text,
-            'dosage': entry.dosage.text,
-            'frequency': entry.frequency,
-            'times': timesList,
-          });
-        }
+      final medications = <Map<String, dynamic>>[];
+      for (final entry in _medicationEntries.cast<_MedicationEntry>()) {
+        final name = entry.name.text.trim();
+        if (name.isEmpty || entry.times.isEmpty) continue;
+        medications.add({
+          'name': name,
+          'dosage': entry.dosage.text.trim(),
+          'frequency': entry.frequency,
+          'times': entry.times.cast<TimeOfDay>().map((time) {
+            final hour = time.hour.toString().padLeft(2, '0');
+            final minute = time.minute.toString().padLeft(2, '0');
+            return '$hour:$minute';
+          }).toList(),
+        });
       }
 
-      if (rtdbScheduleObject.isEmpty) {
+      if (medications.isEmpty) {
         CustomSnackBar.show(
-            context: context,
-            message: 'Please add at least one valid medication with a time.',
-            isError: true
+          context: context,
+          message: 'Please add at least one valid medication with a time.',
+          isError: true,
         );
-        setState(() { _isLoading = false; });
         return;
       }
 
-      final firestoreRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser?.uid)
-          .collection('medicationSchedules');
-
-      final existingSchedules = await firestoreRef.where('isActive', isEqualTo: true).get();
-      for (final doc in existingSchedules.docs) {
-        await doc.reference.update({'isActive': false});
-      }
-
-      final firestoreScheduleData = {
-        'scheduleName': _scheduleNameController.text,
-        'isActive': true,
-        'createdAt': Timestamp.now(),
-        'medications': firestoreMedicationsList,
-      };
-
-      await firestoreRef.add(firestoreScheduleData);
-      await _remindersRef.child('schedule/med_times').set(rtdbScheduleObject);
-      await _remindersRef.child('schedule/current_status').set("IDLE");
-
+      final synced = await ScheduleSyncService.save(
+        user.uid, _scheduleNameController.text.trim(), medications,
+      );
       if (mounted) {
         CustomSnackBar.show(
-            context: context,
-            message: 'New schedule saved and activated!'
+          context: context,
+          message: synced
+              ? 'New schedule saved and activated.'
+              : 'Schedule saved. Device sync failed and will retry when AgeLink opens.',
+          isError: !synced,
         );
         Navigator.pop(context);
       }

@@ -2,199 +2,207 @@
 #include "age_link_types.h"
 #include "age_link_audio.h"
 #include "age_link_hardware.h"
-#include "age_link_config.h"
+#include "age_link_network.h"
+#include <stdio.h>
+
+namespace {
+enum class SosStage { Idle, Countdown, Dialing, HangingUp, Retry, Result };
+enum class CallResult { Unanswered, Answered, Cancelled };
+
+SosStage stage = SosStage::Idle;
+CallResult result = CallResult::Unanswered;
+unsigned long stageStarted = 0;
+unsigned long lastCallQuery = 0;
+size_t contactIndex = 0;
+uint8_t hangupAttempts = 0;
+String modemLine;
+bool callQueryPending = false;
+bool beginHangup = false;
+
+void enter(SosStage next) {
+    stage = next;
+    stageStarted = millis();
+}
+
+bool sosPressed() {
+    static bool raw = false;
+    static bool stable = false;
+    static unsigned long changed = 0;
+    const bool pressed = isSosButtonPressed();
+    if (raw != pressed) {
+        raw = pressed;
+        changed = millis();
+    }
+    if (stable == raw || millis() - changed < 35) return false;
+    stable = raw;
+    return stable;
+}
+
+void finish(const char* headline, const char* detail = "", const char* sound = nullptr) {
+    stopAudio();
+    showOLED("SOS", headline, detail);
+    if (sound) playWavFile(sound);
+    enter(SosStage::Result);
+}
+
+void dialContact() {
+    const auto& contact = contacts[contactIndex];
+    showOLED("SOS", "Calling...", contact.name, "Press SOS to cancel");
+    while (Serial2.available()) Serial2.read();
+    modemLine = "";
+    result = CallResult::Unanswered;
+    callQueryPending = false;
+    beginHangup = false;
+    Serial2.print("ATD");
+    Serial2.print(contact.phone);
+    Serial2.print(";\r");
+    enter(SosStage::Dialing);
+    lastCallQuery = stageStarted;
+}
+
+void hangUp() {
+    while (Serial2.available()) Serial2.read();
+    modemLine = "";
+    ++hangupAttempts;
+    Serial2.print("ATH\r");
+    enter(SosStage::HangingUp);
+}
+
+void finishHangup(bool confirmed) {
+    if (result == CallResult::Answered) {
+        if (confirmed) {
+            finish("Confirmed", contacts[contactIndex].name.c_str(), SOUND_EMERGENCY_INFORMED);
+        } else {
+            finish("Call answered", "Hang-up not verified");
+        }
+    } else if (result == CallResult::Cancelled) {
+        if (confirmed) {
+            finish("Cancelled", "", SOUND_SOS_CALL_CANCEL);
+        } else {
+            finish("Retry stopped", "Hang-up not verified");
+        }
+    } else {
+        contactIndex = (contactIndex + 1) % contacts.size();
+        showOLED("SOS", "Retrying", contacts[contactIndex].name, "Press SOS to cancel");
+        enter(SosStage::Retry);
+    }
+}
+
+void readModem() {
+    while (Serial2.available()) {
+        const char c = static_cast<char>(Serial2.read());
+        if (c != '\n') {
+            if (c != '\r' && modemLine.length() < 160) modemLine += c;
+            continue;
+        }
+        modemLine.trim();
+
+        if (stage == SosStage::HangingUp) {
+            if (modemLine == "OK" || modemLine == "NO CARRIER") {
+                finishHangup(true);
+                modemLine = "";
+                return;
+            }
+        } else {
+            int direction;
+            int status;
+            int mode;
+            if (sscanf(modemLine.c_str(), "+CLCC: %*d,%d,%d,%d", &direction, &status, &mode) == 3 &&
+                direction == 0 && status == 0 && mode == 0 && result != CallResult::Cancelled) {
+                result = CallResult::Answered;
+                beginHangup = true;
+                showOLED("SOS", "Call answered", "Hanging up...");
+            } else if (modemLine == "BUSY" || modemLine == "NO ANSWER" ||
+                       modemLine == "NO CARRIER" || modemLine == "NO DIALTONE" ||
+                       modemLine.startsWith("+CME ERROR:") ||
+                       (modemLine == "ERROR" && !callQueryPending)) {
+                beginHangup = true;
+            }
+            if (modemLine == "OK" || modemLine == "ERROR") callQueryPending = false;
+        }
+        modemLine = "";
+    }
+}
+}  // namespace
 
 void initSIM() {
-    Serial.println(F("[SIM800L] Initializing UART2 communication..."));
     Serial2.begin(SIM800L_BAUD, SERIAL_8N1, RX2_PIN, TX2_PIN);
-    delay(1000); // Allow modem internal voltage regulators to stabilize
+    delay(1000);
     Serial.println(F("[SIM800L] UART2 ready."));
 }
 
-String sendATCommand(const String& command, unsigned long timeout_ms, bool fullResponse) {
-    while (Serial2.available()) {
-        Serial2.read(); // Flush stale RX bytes
-    }
+bool updateSOS() {
+    const bool pressed = sosPressed();
+    const unsigned long elapsed = millis() - stageStarted;
 
-    Serial2.println(command);
-    Serial.print(F("-> SIM800L TX: "));
-    Serial.println(command);
-
-    String response;
-    response.reserve(128); // Optimize to reduce heap reallocations
-
-    unsigned long startTime = millis();
-    while (millis() - startTime < timeout_ms) {
-        while (Serial2.available()) {
-            char c = (char)Serial2.read();
-            response += c;
-        }
-        delay(5); // Small yield
-    }
-
-    response.trim();
-    if (fullResponse) {
-        Serial.print(F("<- SIM800L RX (Full): "));
-        Serial.println(response);
-    }
-    return response;
-}
-
-void executeSosSequence() {
-    if (contactCount == 0) {
-        Serial.println(F("[SOS] ERROR: No emergency contacts configured in memory."));
-        updateLCD("SOS ERROR:", "No Contacts");
-        delay(3000);
-        return;
-    }
-
-    // Play SOS alarm voice prompt
-    playWavFile(SOUND_EMERGENCY);
-
-    bool callCancelled = false;
-    bool callAnswered  = false;
-    unsigned long sosStartTime = millis();
-
-    // 5-second initial sound window: user can cancel by pressing SOS button
-    while (millis() - sosStartTime < SOS_CANCEL_WINDOW_MS) {
-        audioLoop();
-        if (isSosButtonPressed() && (millis() - sosStartTime > SOS_DEBOUNCE_DELAY_MS)) {
-            Serial.println(F("[SOS] Cancelled by user during initial alert."));
-            callCancelled = true;
+    switch (stage) {
+        case SosStage::Idle:
+            if (!pressed) return false;
+            contactIndex = 0;
+            playWavFile(SOUND_EMERGENCY);
+            showOLED("SOS", "Calling in 3s", "Press SOS to cancel");
+            enter(SosStage::Countdown);
             break;
-        }
-        delay(40);
-    }
 
-    // Dial loop through all loaded emergency contacts
-    while (!callCancelled && !callAnswered) {
-        for (int i = 0; i < contactCount && !callCancelled && !callAnswered; i++) {
-            const String& name  = contacts[i].name;
-            const String& phone = contacts[i].phone;
-
-            Serial.print(F("[SOS] Dialing Contact "));
-            Serial.print(i + 1);
-            Serial.print(F("/"));
-            Serial.print(contactCount);
-            Serial.print(F(": "));
-            Serial.print(name);
-            Serial.print(F(" ("));
-            Serial.print(phone);
-            Serial.println(F(")"));
-
-            updateLCD("CALLING: " + name, phone);
-
-            // Flush buffer and send ATD dial command
-            while (Serial2.available()) Serial2.read();
-            Serial2.print(F("ATD"));
-            Serial2.print(phone);
-            Serial2.println(F(";"));
-
-            String response;
-            response.reserve(64);
-            bool callFailed = false;
-
-            unsigned long callStartTime = millis();
-            while (millis() - callStartTime < SOS_CALL_TIMEOUT_MS) {
-                audioLoop();
-
-                // User cancellation check
-                if (isSosButtonPressed()) {
-                    Serial.println(F("[SOS] User cancelled call while dialing."));
-                    callCancelled = true;
-                    break;
-                }
-
-                if (Serial2.available()) {
-                    char c = (char)Serial2.read();
-                    response += c;
-                    if (response.indexOf("BUSY") != -1) {
-                        Serial.println(F("[SIM800L] Line is BUSY."));
-                        callFailed = true;
-                        break;
-                    }
-                    if (response.indexOf("NO CARRIER") != -1) {
-                        Serial.println(F("[SIM800L] Call FAILED (No Carrier)."));
-                        callFailed = true;
-                        break;
-                    }
-                    if (response.indexOf("ERROR") != -1) {
-                        Serial.println(F("[SIM800L] Call FAILED (SIM Error)."));
-                        callFailed = true;
-                        break;
+        case SosStage::Countdown:
+            if (pressed) {
+                finish("Cancelled", "", SOUND_SOS_CALL_CANCEL);
+            } else if (elapsed >= SOS_CANCEL_WINDOW_MS) {
+                if (contacts.empty()) {
+                    const bool synced = WiFi.status() == WL_CONNECTED && Firebase.ready() &&
+                                        fetchEmergencyContact();
+                    if (!synced) {
+                        finish("No saved numbers", "Check Wi-Fi and app");
+                    } else if (contacts.empty()) {
+                        finish("No contacts", "Add one in the app");
                     }
                 }
-                delay(40);
-            }
-
-            // Always hang up call after timeout or failure
-            Serial.println(F("[SIM800L] Hanging up call via ATH..."));
-            sendATCommand("ATH", 3000, false);
-
-            if (callCancelled) {
-                break;
-            }
-
-            if (callFailed) {
-                playWavFile(SOUND_EMERGENCY_INFORMED);
-                updateLCD("Call Failed:", name);
-
-                unsigned long failDelayStart = millis();
-                while (millis() - failDelayStart < 2000) {
-                    audioLoop();
-                    delay(40);
-                }
+                if (!contacts.empty()) dialContact();
             } else {
-                Serial.println(F("[SOS] Call connected or rang out for duration."));
-                callAnswered = true;
+                const unsigned long seconds = (SOS_CANCEL_WINDOW_MS - elapsed + 999) / 1000;
+                showOLED("SOS", "Calling in " + String(seconds) + "s", "Press SOS to cancel");
             }
+            break;
 
-            // Inter-call pause
-            if (i < contactCount - 1 && !callCancelled && !callAnswered) {
-                Serial.println(F("[SOS] Pausing 2s before dialing next contact..."));
-                updateLCD("Next Contact...", "");
-
-                unsigned long pauseStart = millis();
-                while (millis() - pauseStart < 2000) {
-                    audioLoop();
-                    if (isSosButtonPressed()) {
-                        Serial.println(F("[SOS] Cancelled during inter-call pause."));
-                        callCancelled = true;
-                        break;
-                    }
-                    delay(40);
-                }
+        case SosStage::Dialing:
+            if (pressed && result != CallResult::Answered) {
+                result = CallResult::Cancelled;
+                beginHangup = true;
             }
-        } // End of contact list iteration
-
-        if (!callCancelled && !callAnswered) {
-            Serial.println(F("[SOS] Completed round of all contacts. Cycling back..."));
-            updateLCD("Restarting", "Call List...");
-
-            unsigned long cycleDelayStart = millis();
-            while (millis() - cycleDelayStart < 2000) {
-                audioLoop();
-                delay(40);
+            readModem();
+            if (elapsed >= SOS_CALL_TIMEOUT_MS) beginHangup = true;
+            if (beginHangup && (!callQueryPending || millis() - lastCallQuery >= 250)) {
+                hangupAttempts = 0;
+                hangUp();
+            } else if (!beginHangup && millis() - lastCallQuery >= 1000) {
+                Serial2.print("AT+CLCC\r");
+                callQueryPending = true;
+                lastCallQuery = millis();
             }
-        }
-    }
+            break;
 
-    // Terminating audio feedback and display status
-    if (callCancelled) {
-        Serial.println(F("[SOS] Completed SOS sequence: User CANCELLED."));
-        playWavFile(SOUND_SOS_CALL_CANCEL);
-        updateLCD("SOS", "CANCELLED");
-    } else if (callAnswered) {
-        Serial.println(F("[SOS] Completed SOS sequence: Contact INFORMED."));
-        playWavFile(SOUND_EMERGENCY_INFORMED);
-        updateLCD("SOS Calls", "Finished.");
-    }
+        case SosStage::HangingUp:
+            if (pressed && result == CallResult::Unanswered) {
+                result = CallResult::Cancelled;
+            }
+            readModem();
+            if (stage == SosStage::HangingUp && elapsed >= 1000) {
+                if (hangupAttempts < 2) hangUp();
+                else finishHangup(false);
+            }
+            break;
 
-    unsigned long finalDelayStart = millis();
-    while (millis() - finalDelayStart < 3000) {
-        audioLoop();
-        delay(40);
-    }
+        case SosStage::Retry:
+            if (pressed) finish("Cancelled", "", SOUND_SOS_CALL_CANCEL);
+            else if (elapsed >= 2000) dialContact();
+            break;
 
-    lastSosPressTime = millis();
+        case SosStage::Result:
+            if (elapsed >= 3000 && !isAudioPlaying()) {
+                enter(SosStage::Idle);
+                return false;
+            }
+            break;
+    }
+    return true;
 }

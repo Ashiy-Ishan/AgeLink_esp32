@@ -51,10 +51,10 @@ bool loadContactsFromFile();
 bool saveScheduleToFile(const String& scheduleJson);
 
 /**
- * @brief Loads schedule from /schedule.json for offline next-dose display calculation.
- * @return true on success.
+ * @brief Reads the cached schedule from /schedule.json.
+ * @return Schedule JSON, or an empty string if unavailable.
  */
-bool loadScheduleFromFile();
+String loadScheduleFromFile();
 
 /**
  * @brief Deletes /config.json, /contacts.json, and /schedule.json for factory reset.
