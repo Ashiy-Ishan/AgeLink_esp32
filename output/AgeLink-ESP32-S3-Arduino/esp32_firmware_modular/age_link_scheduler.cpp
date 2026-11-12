@@ -15,21 +15,21 @@ void startAlarmSequence(ReminderState phase) {
         case GREEN_ACTIVE:
             Serial.println(F("GREEN (Tier 1 - First Reminder)"));
             setLEDs(true, false, false);
-            updateLCD("TIME TO TAKE:", currentMedicineName);
+            showOLED("MEDICINE DUE", currentMedicineName, "Press green button", "when taken");
             soundToPlay = SOUND_FIRST_REMINDER;
             break;
 
         case ORANGE_ACTIVE:
             Serial.println(F("ORANGE (Tier 2 - Second Reminder)"));
             setLEDs(false, true, false);
-            updateLCD("SECOND REMINDER:", currentMedicineName);
+            showOLED("REPEAT REMINDER", currentMedicineName, "Press green button", "when taken");
             soundToPlay = SOUND_SECOND_REMINDER;
             break;
 
         case RED_ACTIVE:
             Serial.println(F("RED (Tier 3 - Final Reminder)"));
             setLEDs(false, false, true);
-            updateLCD("FINAL REMINDER:", currentMedicineName);
+            showOLED("FINAL REMINDER", currentMedicineName, "Press green button", "when taken");
             soundToPlay = SOUND_FINAL_REMINDER;
             break;
 
@@ -50,7 +50,7 @@ void checkFactoryResetButton() {
         } else if (millis() - greenButtonPressTime > FACTORY_RESET_HOLD_MS) {
             isResetting = true;
             Serial.println(F("\n[SYSTEM] --- FACTORY RESET TRIGGERED BY BUTTON ---"));
-            updateLCD("FACTORY RESET", "Erasing files...");
+            showOLED("SETUP", "Factory reset", "Erasing settings");
 
             unsigned long resetStartTime = millis();
             while (millis() - resetStartTime < 3000) {

@@ -16,7 +16,7 @@ FirebaseAuth fbAuth;
 void initWiFi() {
     Serial.print(F("[WIFI] Connecting to SSID: "));
     Serial.println(wifi_ssid);
-    updateLCD("Connecting WiFi", wifi_ssid);
+    showOLED("WI-FI", "Connecting", wifi_ssid);
 
     WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
 
@@ -57,7 +57,7 @@ void handleWiFiReconnect() {
         }
 
         playWavFile(SOUND_WIFI_CONNECTED);
-        updateLCD("WiFi Connected", "NTP Sync...");
+        showOLED("WI-FI", "Connected", "Syncing clock");
 
         initNTP();
     }
@@ -274,7 +274,7 @@ void handleConfirmation(const String& state) {
     confirmationJson.set("reminder_state", state);
     confirmationJson.set("confirmed_at_timestamp/.sv", "timestamp");
 
-    updateLCD("Confirmation:", "RECEIVED!");
+    showOLED("DOSE CONFIRMED", "Dose taken", currentMedicineName);
     if (offlineMode || !Firebase.ready()) {
         return;
     }

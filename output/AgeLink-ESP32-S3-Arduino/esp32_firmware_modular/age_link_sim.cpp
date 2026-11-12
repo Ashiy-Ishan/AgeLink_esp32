@@ -43,7 +43,7 @@ String sendATCommand(const String& command, unsigned long timeout_ms, bool fullR
 void executeSosSequence() {
     if (contactCount == 0) {
         Serial.println(F("[SOS] ERROR: No emergency contacts configured in memory."));
-        updateLCD("SOS ERROR:", "No Contacts");
+        showOLED("SOS", "No contact", "Add one in the app");
         delay(3000);
         return;
     }
@@ -57,6 +57,11 @@ void executeSosSequence() {
 
     // 5-second initial sound window: user can cancel by pressing SOS button
     while (millis() - sosStartTime < SOS_CANCEL_WINDOW_MS) {
+        const unsigned long elapsed = millis() - sosStartTime;
+        const unsigned long remaining = elapsed < SOS_CANCEL_WINDOW_MS
+            ? SOS_CANCEL_WINDOW_MS - elapsed : 0;
+        const unsigned long seconds = (remaining + 999) / 1000;
+        showOLED("SOS", "Calling in " + String(seconds) + "s", "Press SOS to cancel");
         audioLoop();
         if (isSosButtonPressed() && (millis() - sosStartTime > SOS_DEBOUNCE_DELAY_MS)) {
             Serial.println(F("[SOS] Cancelled by user during initial alert."));
@@ -82,7 +87,7 @@ void executeSosSequence() {
             Serial.print(phone);
             Serial.println(F(")"));
 
-            updateLCD("CALLING: " + name, phone);
+            showOLED("SOS", "Calling...", name, "Press SOS to cancel");
 
             // Flush buffer and send ATD dial command
             while (Serial2.available()) Serial2.read();
@@ -137,7 +142,7 @@ void executeSosSequence() {
 
             if (callFailed) {
                 playWavFile(SOUND_EMERGENCY_INFORMED);
-                updateLCD("Call Failed:", name);
+                showOLED("SOS", "Call failed", name);
 
                 unsigned long failDelayStart = millis();
                 while (millis() - failDelayStart < 2000) {
@@ -152,7 +157,7 @@ void executeSosSequence() {
             // Inter-call pause
             if (i < contactCount - 1 && !callCancelled && !callAnswered) {
                 Serial.println(F("[SOS] Pausing 2s before dialing next contact..."));
-                updateLCD("Next Contact...", "");
+                showOLED("SOS", "Next contact", "Press SOS to cancel");
 
                 unsigned long pauseStart = millis();
                 while (millis() - pauseStart < 2000) {
@@ -169,7 +174,7 @@ void executeSosSequence() {
 
         if (!callCancelled && !callAnswered) {
             Serial.println(F("[SOS] Completed round of all contacts. Cycling back..."));
-            updateLCD("Restarting", "Call List...");
+            showOLED("SOS", "Retrying", "Starting call list");
 
             unsigned long cycleDelayStart = millis();
             while (millis() - cycleDelayStart < 2000) {
@@ -183,11 +188,11 @@ void executeSosSequence() {
     if (callCancelled) {
         Serial.println(F("[SOS] Completed SOS sequence: User CANCELLED."));
         playWavFile(SOUND_SOS_CALL_CANCEL);
-        updateLCD("SOS", "CANCELLED");
+        showOLED("SOS", "Cancelled");
     } else if (callAnswered) {
         Serial.println(F("[SOS] Completed SOS sequence: Contact INFORMED."));
         playWavFile(SOUND_EMERGENCY_INFORMED);
-        updateLCD("SOS Calls", "Finished.");
+        showOLED("SOS", "Call finished");
     }
 
     unsigned long finalDelayStart = millis();

@@ -35,15 +35,15 @@ void setup() {
     // 3. Initialize I2S Audio Driver
     initAudio();
 
-    // 4. Initialize LCD Display
-    initLCD();
-    updateLCD("System Booting", "Loading Config...");
+    // 4. Initialize the OLED
+    initOLED();
+    showOLED("AGELINK", "Starting", "Loading settings");
     delay(1000);
 
     // 5. Load Stored Credentials & Configuration
     if (loadConfiguration()) {
         Serial.println(F("[SETUP] Configuration loaded successfully from LittleFS."));
-        updateLCD("Config OK", "SIM800L Init...");
+        showOLED("AGELINK", "Starting", "Checking modem");
     } else {
         Serial.println(F("[SETUP] Configuration missing or invalid. Launching BLE Provisioning..."));
         runBLEProvisioningMode();
@@ -82,7 +82,7 @@ void loop() {
     }
 
     if (!updateLocalTime()) {
-        updateLCD("Clock not synced", "SOS available");
+        showOLED("CLOCK NOT SET", "Waiting", "Connect to Wi-Fi", "SOS available");
         checkFactoryResetButton();
         delay(40);
         return;
@@ -95,20 +95,12 @@ void loop() {
         lastTimeLog = millis();
     }
 
-    // 5. Update Idle / Missed Screen on LCD
-    if (currentState == IDLE || currentState == MISSED) {
-        if (currentState == MISSED) {
-            updateLCD("Medication", "MISSED!");
-        } else {
-            String volStr = "Vol:" + String((int)(currentVolume * 100));
-            String line1  = currentTime;
-            while (line1.length() + volStr.length() < LCD_COLUMNS) {
-                line1 += " ";
-            }
-            line1 += volStr;
-            String line2  = nextMedicineName + ":" + nextMedicineTime;
-            updateLCD(line1, line2);
-        }
+    if (currentState == IDLE) {
+        const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+        showHomeOLED(currentTime, nextMedicineTime, nextMedicineName,
+                     wifiConnected, wifiConnected ? WiFi.RSSI() : 0);
+    } else if (currentState == MISSED) {
+        showOLED("DOSE MISSED", "No response", currentMedicineName);
     }
 
     // 6. Reminder State Machine & Ingestion Timers

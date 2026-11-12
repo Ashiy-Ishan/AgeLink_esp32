@@ -27,7 +27,6 @@ constexpr uint8_t I2S_BCLK    = 4; // Continuous Bit Clock
 // 128x64 OLED (I2C)
 constexpr uint8_t I2C_SDA     = 8;
 constexpr uint8_t I2C_SCL     = 9;
-constexpr uint8_t LCD_COLUMNS = 16;
 constexpr uint8_t OLED_I2C_ADDRESS = 0x3C;
 constexpr bool OLED_IS_SH1106 = true; // Set false for an SSD1306 OLED.
 
