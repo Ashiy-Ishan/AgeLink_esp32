@@ -4,7 +4,6 @@
 ReminderState currentState      = IDLE;
 unsigned long stateChangeTime       = 0;
 unsigned long lastDBCheckTime       = 0;
-unsigned long lastScheduleSaveTime  = 0;
 unsigned long lastSosPressTime      = 0;
 unsigned long lastWifiCheck         = 0;
 unsigned long greenButtonPressTime  = 0;
@@ -22,7 +21,6 @@ float currentVolume = 0.3f; // Default 30% volume
 
 String nextMedicineTime  = "--:--";
 String nextMedicineName  = "None";
-String lastConfirmedTime = "";
 
 // Credentials and Paths
 String wifi_ssid       = "";
@@ -55,6 +53,5 @@ void resetRuntimeState() {
     currentState = IDLE;
     stateChangeTime = 0;
     currentMedicineName = "";
-    lastConfirmedTime = "";
     isResetting = false;
 }

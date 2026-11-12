@@ -110,7 +110,7 @@ void runSchedulerStateMachine() {
 
                 String currentTime = getCurrentTimeFormatted();
                 bool alarmTriggered = checkScheduledTime(currentTime);
-                if (!alarmTriggered) {
+                if (!alarmTriggered && !offlineMode && Firebase.ready()) {
                     fetchDeviceSettings();
                 }
             }

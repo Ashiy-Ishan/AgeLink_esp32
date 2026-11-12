@@ -1,8 +1,9 @@
 #include "age_link_hardware.h"
-#include "age_link_types.h"
+#include <U8x8lib.h>
 
-// Instantiate LCD object
-LiquidCrystal_I2C lcd(LCD_I2C_ADDRESS, LCD_COLUMNS, LCD_ROWS);
+static U8X8_SH1106_128X64_NONAME_HW_I2C sh1106(U8X8_PIN_NONE, I2C_SCL, I2C_SDA);
+static U8X8_SSD1306_128X64_NONAME_HW_I2C ssd1306(U8X8_PIN_NONE, I2C_SCL, I2C_SDA);
+static U8X8& display = OLED_IS_SH1106 ? static_cast<U8X8&>(sh1106) : static_cast<U8X8&>(ssd1306);
 
 static String lcdLine1_last = "";
 static String lcdLine2_last = "";
@@ -34,12 +35,11 @@ bool isSosButtonPressed() {
 }
 
 void initLCD() {
-    Wire.begin(I2C_SDA, I2C_SCL);
-    delay(100);
-    lcd.init();
-    lcd.backlight();
-    lcd.clear();
-    Serial.println(F("[HARDWARE] LCD display initialized successfully."));
+    display.setI2CAddress(OLED_I2C_ADDRESS << 1);
+    display.begin();
+    display.setFont(u8x8_font_chroma48medium8_r);
+    clearLCD();
+    Serial.println(F("[HARDWARE] OLED initialized."));
 }
 
 void updateLCD(const String& line1, const String& line2) {
@@ -50,28 +50,22 @@ void updateLCD(const String& line1, const String& line2) {
         return; // Prevent screen flickering if content has not changed
     }
 
-    // Refresh display to eliminate bus transient noise/corruption
-    lcd.init();
-    lcd.backlight();
-    lcd.clear();
-
-    lcd.setCursor(0, 0);
-    lcd.print(line1_trimmed);
+    display.clearLine(1);
+    display.drawString(0, 1, line1_trimmed.c_str());
     lcdLine1_last = line1_trimmed;
 
-    lcd.setCursor(0, 1);
-    lcd.print(line2_trimmed);
+    display.clearLine(4);
+    display.drawString(0, 4, line2_trimmed.c_str());
     lcdLine2_last = line2_trimmed;
 }
 
 void forceRefreshLCD(const String& line1, const String& line2) {
-    lcdLine1_last = "";
-    lcdLine2_last = "";
+    clearLCD();
     updateLCD(line1, line2);
 }
 
 void clearLCD() {
     lcdLine1_last = "";
     lcdLine2_last = "";
-    lcd.clear();
+    display.clearDisplay();
 }

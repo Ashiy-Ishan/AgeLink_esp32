@@ -32,7 +32,6 @@ class AgeLinkCharacteristicCallbacks : public BLECharacteristicCallbacks {
         if (value_std.length() > 0) {
             Serial.println(F("****************************************"));
             Serial.println(F("[BLE] Provisioning Data Received:"));
-            Serial.println(value_std.c_str());
             Serial.println(F("****************************************"));
 
             // Check for factory reset command

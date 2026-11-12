@@ -30,7 +30,6 @@ struct EmergencyContact {
 extern ReminderState currentState;
 extern unsigned long stateChangeTime;
 extern unsigned long lastDBCheckTime;
-extern unsigned long lastScheduleSaveTime;
 extern unsigned long lastSosPressTime;
 extern unsigned long lastWifiCheck;
 extern unsigned long greenButtonPressTime;
@@ -48,7 +47,6 @@ extern float currentVolume;
 
 extern String nextMedicineTime;
 extern String nextMedicineName;
-extern String lastConfirmedTime;
 
 // Network & Firebase Credentials / Paths
 extern String wifi_ssid;

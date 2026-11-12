@@ -204,78 +204,9 @@ bool saveScheduleToFile(const String& scheduleJson) {
     return true;
 }
 
-bool loadScheduleFromFile() {
-    if (offlineMode) return false;
-
-    Serial.println(F("[STORAGE] Loading backup schedule from /schedule.json..."));
-    if (!LittleFS.exists("/schedule.json")) {
-        return false;
-    }
-
+String loadScheduleFromFile() {
     File scheduleFile = LittleFS.open("/schedule.json", "r");
-    if (!scheduleFile) {
-        Serial.println(F("[STORAGE] Failed to open /schedule.json"));
-        return false;
-    }
-
-    StaticJsonDocument<1024> doc;
-    DeserializationError error = deserializeJson(doc, scheduleFile);
-    scheduleFile.close();
-
-    if (error) {
-        Serial.print(F("[STORAGE] Failed to parse /schedule.json: "));
-        Serial.println(error.c_str());
-        return false;
-    }
-
-    // Determine next medicine time from backup
-    char curTimeBuf[6];
-    strftime(curTimeBuf, sizeof(curTimeBuf), "%H:%M", &timeinfo);
-    String currentTime = String(curTimeBuf);
-
-    String nextTimeToday = "25:00";
-    String earliestTimeOverall = "25:00";
-    String nextNameToday = "None";
-    String earliestNameOverall = "None";
-
-    if (doc.is<JsonObject>()) {
-        for (JsonPair kv : doc.as<JsonObject>()) {
-            String medTime = kv.value()["time"].as<String>();
-            String medName = kv.value()["name"].as<String>();
-
-            if (medTime.isEmpty()) continue;
-
-            if (medTime.length() == 4 && medTime[1] == ':') {
-                medTime = "0" + medTime;
-            }
-
-            if (medTime < earliestTimeOverall) {
-                earliestTimeOverall = medTime;
-                earliestNameOverall = medName;
-            }
-            if (medTime > currentTime && medTime < nextTimeToday) {
-                nextTimeToday = medTime;
-                nextNameToday = medName;
-            }
-        }
-    }
-
-    if (nextTimeToday != "25:00") {
-        nextMedicineTime = nextTimeToday;
-        nextMedicineName = nextNameToday;
-    } else if (earliestTimeOverall != "25:00") {
-        nextMedicineTime = earliestTimeOverall;
-        nextMedicineName = earliestNameOverall;
-    } else {
-        nextMedicineTime = "--:--";
-        nextMedicineName = "None";
-    }
-
-    Serial.print(F("[STORAGE] Offline Next Med: "));
-    Serial.print(nextMedicineName);
-    Serial.print(F(" @ "));
-    Serial.println(nextMedicineTime);
-    return true;
+    return scheduleFile ? scheduleFile.readString() : String();
 }
 
 void deleteConfigurationFiles() {

@@ -25,7 +25,7 @@ void initWiFi();
 void handleWiFiReconnect();
 
 /**
- * @brief Configures SNTP client and blocks safely until valid UTC/local time is synced.
+ * @brief Starts SNTP synchronization in the background.
  */
 void initNTP();
 

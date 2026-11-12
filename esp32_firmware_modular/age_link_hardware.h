@@ -2,14 +2,11 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h>
 #include "age_link_config.h"
 
 // =============================================================================
 // Hardware & Display Peripherals Manager
 // =============================================================================
-
-extern LiquidCrystal_I2C lcd;
 
 /**
  * @brief Configures GPIO pin modes for status LEDs and input buttons.
@@ -37,12 +34,12 @@ bool isMedButtonPressed();
 bool isSosButtonPressed();
 
 /**
- * @brief Initializes the I2C bus and the 16x2 LCD display.
+ * @brief Initializes the I2C bus and the 128x64 OLED.
  */
 void initLCD();
 
 /**
- * @brief Updates the LCD text conditionally to eliminate flicker and glitching.
+ * @brief Updates the display text conditionally to eliminate flicker and glitching.
  * @param line1 Top row text (trimmed to 16 characters).
  * @param line2 Bottom row text (trimmed to 16 characters).
  */
@@ -54,6 +51,6 @@ void updateLCD(const String& line1, const String& line2);
 void forceRefreshLCD(const String& line1, const String& line2);
 
 /**
- * @brief Clears LCD display buffer.
+ * @brief Clears OLED display buffer.
  */
 void clearLCD();

@@ -59,65 +59,32 @@ void setup() {
     // 8. Initialize Firebase RTDB Connection
     initFirebase();
 
-    // 9. Online Initialization Sequence
-    if (!offlineMode) {
-        playWavFile(SOUND_POWER_UP);
-        playWavFile(SOUND_WIFI_CONNECTED);
-        updateLCD("WiFi Connected", "NTP Sync...");
-
-        waitForAudioToFinish(5000);
-
-        initNTP();
-        updateLCD("Time Sync OK", "Data Fetching...");
-
-        fetchEmergencyContact();
-        saveContactsToFile();
-
-        Serial.println(F("[SETUP] Performing initial schedule evaluation..."));
-        checkScheduledTime(getCurrentTimeFormatted());
-        updateLCD("Ready!", "Next: " + nextMedicineTime);
-    } else {
-        // Fallback for offline mode
-        updateLCD("OFFLINE MODE", "SOS Only");
-        if (!loadContactsFromFile()) {
-            contacts[0].name  = "Emergency";
-            contacts[0].phone = "0763777417";
-            contactCount      = 1;
-            Serial.println(F("[SETUP] Fallback offline emergency contact activated."));
-        }
-    }
-
-    delay(1500);
+    loadContactsFromFile();
+    initNTP();
+    playWavFile(offlineMode ? SOUND_POWER_UP : SOUND_WIFI_CONNECTED);
 }
 
 void loop() {
-    // 0. Hardware Lock during factory reset wipe
     if (isResetting) {
         return;
     }
 
-    // 1. Process Audio Pipeline (Highest non-blocking priority)
     audioLoop();
-
-    // 2. Wi-Fi Status Check & Background Reconnection
+    checkSosButton();
     handleWiFiReconnect();
 
-    // 3. OFFLINE MODE Execution Branch
-    if (offlineMode) {
-        updateLCD("OFFLINE MODE", "SOS Only");
-        checkSosButton();
-        delay(40);
-        return;
+    static bool contactsSynced = false;
+    if (offlineMode || !Firebase.ready()) {
+        contactsSynced = false;
+    } else if (!contactsSynced) {
+        fetchEmergencyContact();
+        contactsSynced = true;
     }
 
-    // 4. ONLINE MODE Execution Branch
-    if (!Firebase.ready()) {
-        delay(500);
-        return;
-    }
-
-    // Update local clock time
     if (!updateLocalTime()) {
+        updateLCD("Clock not synced", "SOS available");
+        checkFactoryResetButton();
+        delay(40);
         return;
     }
 
@@ -146,9 +113,6 @@ void loop() {
 
     // 6. Reminder State Machine & Ingestion Timers
     runSchedulerStateMachine();
-
-    // 7. Check Emergency SOS Button
-    checkSosButton();
 
     delay(40);
 }

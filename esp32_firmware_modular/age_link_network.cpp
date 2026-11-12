@@ -43,19 +43,6 @@ void handleWiFiReconnect() {
         if (millis() - lastWifiCheck > WIFI_RETRY_INTERVAL_MS) {
             Serial.println(F("[WIFI] Connection lost. Attempting non-blocking reconnect..."));
 
-            if (Firebase.ready() && !rtdb_device_path.isEmpty()) {
-                Firebase.setBool(fbdo, rtdb_device_path + "/device_active", false);
-            }
-
-            updateLCD("WiFi LOST", "SOS Only Mode");
-
-            if (!loadContactsFromFile()) {
-                contacts[0].name  = "Emergency";
-                contacts[0].phone = "0759428249";
-                contactCount      = 1;
-                Serial.println(F("[WIFI] Using FALLBACK emergency contact in offline mode."));
-            }
-
             WiFi.reconnect();
             lastWifiCheck = millis();
         }
@@ -72,29 +59,17 @@ void handleWiFiReconnect() {
         playWavFile(SOUND_WIFI_CONNECTED);
         updateLCD("WiFi Connected", "NTP Sync...");
 
-        waitForAudioToFinish(5000);
-
         initNTP();
-        fetchEmergencyContact();
-        saveContactsToFile();
-        checkScheduledTime(getCurrentTimeFormatted());
     }
 }
 
 void initNTP() {
     configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
-    Serial.println(F("[NTP] Synchronizing system clock with NTP server..."));
-
-    while (!getLocalTime(&timeinfo)) {
-        Serial.print(F("."));
-        audioLoop();
-        delay(500);
-    }
-    Serial.println(F("\n[NTP] Time synchronization completed successfully."));
+    Serial.println(F("[NTP] Requested time synchronization."));
 }
 
 bool updateLocalTime() {
-    return getLocalTime(&timeinfo);
+    return getLocalTime(&timeinfo, 0);
 }
 
 String getCurrentTimeFormatted() {
@@ -122,9 +97,10 @@ void fetchDeviceSettings() {
 
     stopAudio();
 
-    if (Firebase.getString(fbdo, rtdb_device_path)) {
+    if (Firebase.get(fbdo, rtdb_device_path)) {
         if (fbdo.dataType() == "json") {
-            FirebaseJson json = fbdo.jsonString();
+            FirebaseJson json;
+            json.setJsonData(fbdo.jsonString());
             FirebaseJsonData result;
 
             if (json.get(result, FPSTR("volume"))) {
@@ -149,23 +125,11 @@ void fetchDeviceSettings() {
 
 void fetchEmergencyContact() {
     Serial.println(F("[FIREBASE] Fetching emergency contacts..."));
-    contactCount = 0;
-
-    if (offlineMode) {
-        if (!loadContactsFromFile()) {
-            contacts[0].name  = "Emergency";
-            contacts[0].phone = "0763777417";
-            contactCount      = 1;
-            Serial.println(F("[FIREBASE] Offline fallback contact loaded."));
-        }
-        return;
-    }
-
-    stopAudio();
-
-    if (Firebase.getString(fbdo, rtdb_emergency_path)) {
+    if (Firebase.get(fbdo, rtdb_emergency_path)) {
+        contactCount = 0;
         if (fbdo.dataType() == "json") {
-            FirebaseJson json = fbdo.jsonString();
+            FirebaseJson json;
+            json.setJsonData(fbdo.jsonString());
             size_t len = json.iteratorBegin();
             FirebaseJsonData result;
 
@@ -199,17 +163,10 @@ void fetchEmergencyContact() {
             }
             json.iteratorEnd();
         }
+        saveContactsToFile();
     } else {
         Serial.print(F("[FIREBASE] Failed to read emergency contacts: "));
         Serial.println(fbdo.errorReason());
-        loadContactsFromFile();
-    }
-
-    if (contactCount == 0) {
-        contacts[0].name  = "Emergency";
-        contacts[0].phone = "0763777417";
-        contactCount      = 1;
-        saveContactsToFile();
     }
 }
 
@@ -218,114 +175,87 @@ bool checkScheduledTime(const String& currentTime) {
         return false;
     }
 
-    if (offlineMode) {
-        return false;
+    static String schedule = loadScheduleFromFile();
+    static time_t lastAlarmMinute = -1;
+    const bool cloudReady = !offlineMode && Firebase.ready();
+
+    if (cloudReady) {
+        Firebase.setString(fbdo, rtdb_device_path + "/last_sync", currentTime);
+        if (Firebase.get(fbdo, rtdb_schedule_path + "/med_times")) {
+            const String downloaded = fbdo.dataType() == "json" ? fbdo.jsonString() : String("{}");
+            if (downloaded != schedule && saveScheduleToFile(downloaded)) {
+                Serial.println(F("[SCHEDULE] Updated offline backup."));
+            }
+            schedule = downloaded;
+        }
     }
 
-    Serial.print(F("[SCHEDULE] Checking schedule for time: "));
-    Serial.println(currentTime);
-
-    // Keep server last_sync timestamp updated
-    Firebase.setString(fbdo, rtdb_device_path + "/last_sync", currentTime);
-
-    stopAudio();
-
-    String path = rtdb_schedule_path + "/med_times";
-    String nextTimeToday = "25:00";
-    String earliestTimeOverall = "25:00";
-    String nextNameToday = "None";
-    String earliestNameOverall = "None";
+    FirebaseJson json;
+    if (!schedule.isEmpty()) {
+        json.setJsonData(schedule);
+    }
+    size_t count = json.iteratorBegin();
+    String earliestTime = "25:00";
+    String earliestName = "None";
+    String nextTime = "25:00";
+    String nextName = "None";
+    const time_t currentMinute = time(nullptr) / 60;
     bool alarmTriggered = false;
 
-    if (Firebase.getString(fbdo, path)) {
-        // Save periodic offline backup of schedule
-        if (millis() - lastScheduleSaveTime > SCHEDULE_SAVE_INTERVAL_MS) {
-            saveScheduleToFile(fbdo.stringData());
-            lastScheduleSaveTime = millis();
+    for (size_t i = 0; i < count; i++) {
+        String key, value;
+        int type = 0;
+        json.iteratorGet(i, type, key, value);
+        FirebaseJson entry;
+        entry.setJsonData(value);
+        FirebaseJsonData result;
+        if (!entry.get(result, "time") || result.type != "string") {
+            continue;
         }
-
-        if (fbdo.dataType() == "json") {
-            FirebaseJson json = fbdo.jsonString();
-            size_t len = json.iteratorBegin();
-            FirebaseJsonData result;
-
-            for (size_t i = 0; i < len; i++) {
-                String key, value;
-                int type = 0;
-                json.iteratorGet(i, type, key, value);
-
-                FirebaseJson tempJson;
-                tempJson.setJsonData(value);
-
-                String medicineTime, medicineName;
-                if (tempJson.get(result, FPSTR("time")) && result.type == "string") {
-                    medicineTime = result.stringValue;
-                    medicineTime.trim();
-                    if (medicineTime.length() == 4 && medicineTime[1] == ':') {
-                        medicineTime = "0" + medicineTime;
-                    }
-                }
-
-                if (tempJson.get(result, FPSTR("name"))) {
-                    medicineName = result.stringValue;
-                    medicineName.trim();
-                }
-
-                if (medicineTime.isEmpty()) continue;
-
-                if (medicineTime < earliestTimeOverall) {
-                    earliestTimeOverall = medicineTime;
-                    earliestNameOverall = medicineName;
-                }
-
-                if (medicineTime > currentTime && medicineTime < nextTimeToday) {
-                    nextTimeToday = medicineTime;
-                    nextNameToday = medicineName;
-                }
-
-                if (currentTime.equals(medicineTime) && !alarmTriggered && (currentTime != lastConfirmedTime)) {
-                    Serial.println(F("*************************************************"));
-                    Serial.println(F("[SCHEDULE] ALARM TRIGGERED! MATCHING TIME FOUND!"));
-                    Serial.println(F("*************************************************"));
-
-                    currentMedicineName = medicineName;
-                    currentState        = GREEN_ACTIVE;
-                    stateChangeTime     = millis();
-                    startAlarmSequence(GREEN_ACTIVE);
-
-                    Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "ACTIVE");
-                    alarmTriggered = true;
-                }
-            }
-            json.iteratorEnd();
-
-            if (nextTimeToday != "25:00") {
-                nextMedicineTime = nextTimeToday;
-                nextMedicineName = nextNameToday;
-            } else if (earliestTimeOverall != "25:00") {
-                nextMedicineTime = earliestTimeOverall;
-                nextMedicineName = earliestNameOverall;
-            } else {
-                nextMedicineTime = "--:--";
-                nextMedicineName = "None";
-            }
-
-            Serial.print(F("[SCHEDULE] Next med: "));
-            Serial.print(nextMedicineName);
-            Serial.print(F(" ("));
-            Serial.print(nextMedicineTime);
-            Serial.println(F(")"));
-
-            if (alarmTriggered) {
-                return true;
-            }
+        String medicineTime = result.stringValue;
+        medicineTime.trim();
+        if (medicineTime.length() == 4 && medicineTime[1] == ':') {
+            medicineTime = "0" + medicineTime;
         }
-    } else {
-        Serial.print(F("[SCHEDULE] Error reading med_times: "));
-        Serial.println(fbdo.errorReason());
+        if (medicineTime.length() != 5 || medicineTime[2] != ':' ||
+            !isDigit(medicineTime[0]) || !isDigit(medicineTime[1]) ||
+            !isDigit(medicineTime[3]) || !isDigit(medicineTime[4]) ||
+            medicineTime.substring(0, 2).toInt() > 23 ||
+            medicineTime.substring(3).toInt() > 59) {
+            continue;
+        }
+        String medicineName = entry.get(result, "name") ? result.stringValue : String("Medicine");
+        medicineName.trim();
+
+        if (medicineTime < earliestTime) {
+            earliestTime = medicineTime;
+            earliestName = medicineName;
+        }
+        if (medicineTime > currentTime && medicineTime < nextTime) {
+            nextTime = medicineTime;
+            nextName = medicineName;
+        }
+        if (medicineTime == currentTime && currentMinute != lastAlarmMinute) {
+            currentMedicineName = medicineName;
+            currentState = GREEN_ACTIVE;
+            stateChangeTime = millis();
+            lastAlarmMinute = currentMinute;
+            alarmTriggered = true;
+            startAlarmSequence(GREEN_ACTIVE);
+        }
+    }
+    json.iteratorEnd();
+
+    nextMedicineTime = nextTime != "25:00" ? nextTime : earliestTime;
+    nextMedicineName = nextTime != "25:00" ? nextName : earliestName;
+    if (nextMedicineTime == "25:00") {
+        nextMedicineTime = "--:--";
     }
 
-    return false;
+    if (alarmTriggered && cloudReady) {
+        Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "ACTIVE");
+    }
+    return alarmTriggered;
 }
 
 void handleConfirmation(const String& state) {
@@ -344,13 +274,15 @@ void handleConfirmation(const String& state) {
     confirmationJson.set("reminder_state", state);
     confirmationJson.set("confirmed_at_timestamp/.sv", "timestamp");
 
-    lastConfirmedTime = getCurrentTimeFormatted();
+    updateLCD("Confirmation:", "RECEIVED!");
+    if (offlineMode || !Firebase.ready()) {
+        return;
+    }
 
     if (Firebase.push(fbdo, rtdb_confirm_path, confirmationJson)) {
         Serial.print(F("[FIREBASE] Confirmation pushed successfully. State: "));
         Serial.println(state);
         Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "CONFIRMED");
-        updateLCD("Confirmation:", "RECEIVED!");
     } else {
         Serial.print(F("[FIREBASE] Failed pushing confirmation: "));
         Serial.println(fbdo.errorReason());
@@ -367,12 +299,14 @@ void handleMissed(const String& medicineName) {
     missedJson.set("reminder_state", "MISSED");
     missedJson.set("confirmed_at_timestamp/.sv", "timestamp");
 
-    if (Firebase.push(fbdo, rtdb_confirm_path, missedJson)) {
-        Serial.println(F("[FIREBASE] MISSED dose event logged to Firebase."));
-        Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "MISSED");
-    } else {
-        Serial.print(F("[FIREBASE] Failed pushing missed status: "));
-        Serial.println(fbdo.errorReason());
+    if (!offlineMode && Firebase.ready()) {
+        if (Firebase.push(fbdo, rtdb_confirm_path, missedJson)) {
+            Serial.println(F("[FIREBASE] MISSED dose event logged to Firebase."));
+            Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "MISSED");
+        } else {
+            Serial.print(F("[FIREBASE] Failed pushing missed status: "));
+            Serial.println(fbdo.errorReason());
+        }
     }
 
     playWavFile(SOUND_MEDICINE_MISSED);
