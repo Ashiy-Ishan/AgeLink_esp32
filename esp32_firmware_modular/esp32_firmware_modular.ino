@@ -61,6 +61,9 @@ void setup() {
     initFirebase();
 
     loadContactsFromFile();
+    if (!offlineMode && Firebase.ready()) {
+        fetchDeviceSettings();
+    }
     playWavFile(offlineMode ? SOUND_POWER_UP : SOUND_WIFI_CONNECTED);
 }
 

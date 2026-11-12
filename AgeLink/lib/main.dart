@@ -11,6 +11,7 @@ import 'login_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 import 'home_page.dart';
+import 'local_reminder_sync.dart';
 
 // 1. MAIN APPLICATION START - ASYNC INITIALIZATION
 
@@ -148,8 +149,13 @@ class AuthApp extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
-          if (snapshot.hasData) {
-            return const HomePage();
+          final user = snapshot.data;
+          if (user != null) {
+            return LocalReminderSync(
+              key: ValueKey(user.uid),
+              uid: user.uid,
+              child: const HomePage(),
+            );
           }
           return const AuthWrapper();
         },
@@ -170,6 +176,12 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    LocalReminderSync.clear();
+  }
+
   AuthView _currentView = AuthView.login;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

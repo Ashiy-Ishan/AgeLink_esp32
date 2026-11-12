@@ -16,8 +16,9 @@ bool configComplete  = false;
 String currentMedicineName = "";
 String currentMedicineDosage;
 String currentMedicineTime;
+std::vector<String> nearbyMedicineLabels;
 std::vector<EmergencyContact> contacts;
-float currentVolume = 0.3f; // Default 30% volume
+float currentVolume = 0.5f; // Match the app's default reminder volume.
 
 String nextMedicineTime  = "--:--";
 String nextMedicineName  = "None";

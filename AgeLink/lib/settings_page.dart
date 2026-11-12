@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 import 'custom_snackbar.dart';
+import 'local_reminder_sync.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -367,7 +368,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     Divider(indent: 72, endIndent: 18, height: 1, color: Constants.lightBlue),
                     _settingTile(icon: Icons.language_rounded, title: 'Language', subtitle: 'App display language', value: _selectedLanguage, onTap: () { CustomSnackBar.show(context: context, message: 'Language settings coming soon.'); }),
                     Divider(indent: 72, endIndent: 18, height: 1, color: Constants.lightBlue),
-                    _settingTile(icon: Icons.notifications_active_rounded, title: 'Notification preferences', subtitle: 'Reminder notification options', onTap: () { CustomSnackBar.show(context: context, message: 'Notification settings coming soon.'); }),
+                    if (LocalReminderSync.supported) const PhoneReminderSettings(),
                   ],
                 ),
               ),
