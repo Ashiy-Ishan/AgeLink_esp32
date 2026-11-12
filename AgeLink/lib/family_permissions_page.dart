@@ -19,6 +19,7 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
   late final Stream<QuerySnapshot> _familyStream;
   final String appId = kAppId;
   String? _processingInvitation;
+  bool _savingAccess = false;
 
   @override
   void initState() {
@@ -335,6 +336,245 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
     );
   }
 
+  CollectionReference<Map<String, dynamic>> get _membersRef =>
+      FirebaseFirestore.instance
+          .collection('artifacts')
+          .doc(appId)
+          .collection('users')
+          .doc(currentUser!.uid)
+          .collection('family_members');
+
+  DocumentReference<Map<String, dynamic>> _invitationRef(String invitationId) =>
+      FirebaseFirestore.instance
+          .collection('artifacts')
+          .doc(appId)
+          .collection('family_invitations')
+          .doc(invitationId);
+
+  Future<void> _saveMemberMode(
+      QueryDocumentSnapshot<Map<String, dynamic>> member,
+      String mode,
+      ) async {
+    if (_savingAccess || currentUser == null) return;
+    final data = member.data();
+    final invitationId = data['invitationId']?.toString() ?? '';
+    if (invitationId.isEmpty) {
+      CustomSnackBar.show(
+        context: context,
+        message: 'This member has no linked invitation. Access cannot be edited here.',
+        isError: true,
+      );
+      return;
+    }
+    setState(() => _savingAccess = true);
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      batch.update(member.reference, {'mode': mode});
+      batch.update(_invitationRef(invitationId), {
+        'mode': mode,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
+      if (!mounted) return;
+      CustomSnackBar.show(context: context, message: 'Member role updated to $mode.');
+    } catch (error) {
+      if (!mounted) return;
+      CustomSnackBar.show(context: context, message: error.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _savingAccess = false);
+    }
+  }
+
+  Future<void> _removeMember(
+      QueryDocumentSnapshot<Map<String, dynamic>> member,
+      ) async {
+    if (_savingAccess || currentUser == null) return;
+    final data = member.data();
+    final invitationId = data['invitationId']?.toString() ?? '';
+    if (invitationId.isEmpty) {
+      CustomSnackBar.show(
+        context: context,
+        message: 'This member has no linked invitation. Removal needs manual review.',
+        isError: true,
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove family member?'),
+        content: Text('Remove ${data['name'] ?? data['email'] ?? 'this member'} from your care circle?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _savingAccess = true);
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      batch.delete(member.reference);
+      batch.update(_invitationRef(invitationId), {
+        'status': 'revoked',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
+      if (!mounted) return;
+      CustomSnackBar.show(context: context, message: 'Member removed from care circle.');
+    } catch (error) {
+      if (!mounted) return;
+      CustomSnackBar.show(context: context, message: error.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _savingAccess = false);
+    }
+  }
+
+  Future<void> _editMember(
+      QueryDocumentSnapshot<Map<String, dynamic>> member,
+      ) async {
+    if (_savingAccess) return;
+    final data = member.data();
+    final currentMode = data['mode'] == 'Full Mode' ? 'Full Mode' : 'View Mode';
+    String selectedMode = currentMode;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Edit family member'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                data['name']?.toString() ?? 'Family member',
+                style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                data['email']?.toString() ?? '',
+                style: TextStyle(color: Constants.mediumGrey, fontSize: 13),
+              ),
+              const SizedBox(height: 18),
+              const Text('Care circle role', style: TextStyle(fontWeight: FontWeight.w700)),
+              RadioListTile<String>(
+                title: const Text('View Mode'),
+                subtitle: const Text('Stored role; medication read access is not enabled yet.'),
+                value: 'View Mode',
+                groupValue: selectedMode,
+                onChanged: (value) => setDialogState(() => selectedMode = value!),
+                contentPadding: EdgeInsets.zero,
+              ),
+              RadioListTile<String>(
+                title: const Text('Full Mode'),
+                subtitle: const Text('Stored role; medication editing is not enabled yet.'),
+                value: 'Full Mode',
+                groupValue: selectedMode,
+                onChanged: (value) => setDialogState(() => selectedMode = value!),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _removeMember(member);
+              },
+              child: const Text('Remove member', style: TextStyle(color: Colors.redAccent)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: selectedMode == currentMode
+                  ? null
+                  : () {
+                Navigator.pop(dialogContext);
+                _saveMemberMode(member, selectedMode);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEditAccess() {
+    if (currentUser == null || _savingAccess) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Edit access', style: TextStyle(color: Constants.darkblue, fontSize: 21, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              Text('Manage care circle members and stored roles.', style: TextStyle(color: Constants.mediumGrey)),
+              const SizedBox(height: 12),
+              Flexible(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _membersRef.snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) return const Text('Unable to load family members.');
+                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    final members = snapshot.data!.docs;
+                    if (members.isEmpty) return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Text('No family members to manage yet.'),
+                    );
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: members.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final member = members[index];
+                        final data = member.data();
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            backgroundColor: Constants.lightBlue,
+                            child: Icon(Icons.person_outline_rounded, color: Constants.darkblue),
+                          ),
+                          title: Text(data['name']?.toString() ?? 'Family member', maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text('${data['email'] ?? ''} · ${data['mode'] ?? 'View Mode'}', maxLines: 2, overflow: TextOverflow.ellipsis),
+                          trailing: const Icon(Icons.edit_outlined),
+                          onTap: () => _editMember(member),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'These roles currently describe care circle membership only. They do not unlock medication or device data.',
+                style: TextStyle(fontSize: 12, color: Constants.mediumGrey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildInviteButton(BuildContext context) {
     return SizedBox(width: double.infinity, height: 54,
       child: DecoratedBox(decoration: BoxDecoration(gradient: kPrimaryGradient, borderRadius: BorderRadius.circular(16)),
@@ -406,7 +646,7 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
             _buildInviteButton(context),
             const SizedBox(height: 8),
             TextButton.icon(
-              onPressed: () { CustomSnackBar.show(context: context, message: 'Edit Access is under construction.'); },
+              onPressed: _showEditAccess,
               icon: Icon(Icons.manage_accounts_outlined, color: Constants.darkblue, size: 19),
               label: Text('Edit access', style: TextStyle(color: Constants.darkblue, fontWeight: FontWeight.w700)),
             ),
