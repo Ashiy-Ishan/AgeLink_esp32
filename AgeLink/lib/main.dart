@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'firebase_options.dart';
 import 'constants.dart';
+import 'push_notification_service.dart';
 
 import 'login_screen.dart';
 import 'signup_screen.dart';
@@ -25,11 +26,22 @@ void main() {
 class FirebaseInitializer extends StatelessWidget {
   const FirebaseInitializer({super.key});
 
+
   Future<FirebaseApp> _initializeFirebase() async {
-    return await Firebase.initializeApp(
+    final app = await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    try {
+      await PushNotificationService.instance.initialize();
+    } catch (error, stackTrace) {
+      debugPrint('AgeLink push notifications could not initialize: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
+    return app;
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +52,7 @@ class FirebaseInitializer extends StatelessWidget {
         // If the Future is still running, show a loading screen
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const MaterialApp(
+            debugShowCheckedModeBanner: false,
             home: Scaffold(
               body: Center(
                 child: CircularProgressIndicator(),
@@ -104,7 +117,7 @@ class AuthApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
+        debugShowCheckedModeBanner: false,
       title: 'AgeLink',
       theme: ThemeData(
         primarySwatch: Colors.green,
@@ -334,7 +347,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
         ),
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18.0,
+              vertical: 12.0,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
               child: Column(
@@ -343,7 +359,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 children: <Widget>[
                   Image.asset(
                     'assets/agelink_logo.png',
-                    height: 120,
+                    height: 100,
                     errorBuilder: (context, error, stackTrace) => const SizedBox(
                       height: 120,
                       child: Center(
@@ -354,7 +370,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 8),
 
 
                   if (_isSigningIn)
