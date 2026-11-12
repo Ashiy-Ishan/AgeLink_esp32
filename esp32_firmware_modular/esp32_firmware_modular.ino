@@ -55,12 +55,12 @@ void setup() {
 
     // 7. Initialize Wi-Fi Connection
     initWiFi();
+    initNTP();
 
     // 8. Initialize Firebase RTDB Connection
     initFirebase();
 
     loadContactsFromFile();
-    initNTP();
     playWavFile(offlineMode ? SOUND_POWER_UP : SOUND_WIFI_CONNECTED);
 }
 
@@ -104,13 +104,28 @@ void loop() {
     }
 
     if (!updateLocalTime()) {
-        showOLED("CLOCK NOT SET", "Waiting", "Connect to Wi-Fi", "SOS available");
+        const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+        if (wifiConnected) {
+            showOLED("WI-FI CONNECTED", "Syncing clock",
+                     clockSyncDelayed() ? "Check internet" : "Getting network time",
+                     "SOS available");
+            retryClockSync();
+        } else {
+            showOLED("CLOCK NOT SET", "Waiting for Wi-Fi", "Reminders paused", "SOS available");
+        }
         checkFactoryResetButton();
         delay(40);
         return;
     }
 
     String currentTime = getCurrentTimeFormatted();
+    static bool clockWasReady = false;
+    if (!clockWasReady) {
+        clockWasReady = true;
+        lastDBCheckTime = millis() - DB_CHECK_INTERVAL_MS;
+        Serial.print(F("[CLOCK] Local time ready: "));
+        Serial.println(currentTime);
+    }
 
     // Periodic time logging
     if (millis() - lastTimeLog >= TIME_LOG_INTERVAL_MS) {

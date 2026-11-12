@@ -9,6 +9,7 @@
 #include <addons/TokenHelper.h>
 #include <ArduinoJson.h>
 #include <deque>
+#include <sys/time.h>
 #include <vector>
 
 // Firebase Objects Definition
@@ -26,6 +27,12 @@ struct ScheduledDose {
 
 static ScheduledDose activeDose;
 static std::deque<ScheduledDose> pendingDoses;
+static constexpr time_t EARLIEST_VALID_TIME = 1704067200; // 2024-01-01 UTC
+static constexpr unsigned long CLOCK_SYNC_WAIT_MS = 15000;
+static constexpr unsigned long CLOCK_RETRY_INTERVAL_MS = 60000;
+static unsigned long ntpStartedAt = 0;
+static unsigned long clockFallbackAt = 0;
+static bool triedClockFallback = false;
 
 void initWiFi() {
     Serial.print(F("[WIFI] Connecting to SSID: "));
@@ -65,6 +72,8 @@ void handleWiFiReconnect() {
         offlineMode   = false;
         lastWifiCheck = millis();
 
+        initNTP();
+
         if (Firebase.ready() && !rtdb_device_path.isEmpty()) {
             Firebase.setBool(fbdo, rtdb_device_path + "/device_active", true);
             Firebase.setString(fbdo, rtdb_device_path + "/device_id", hardcoded_device_id);
@@ -73,17 +82,51 @@ void handleWiFiReconnect() {
         playWavFile(SOUND_WIFI_CONNECTED);
         showOLED("WI-FI", "Connected", "Syncing clock");
 
-        initNTP();
     }
 }
 
 void initNTP() {
-    configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
-    Serial.println(F("[NTP] Requested time synchronization."));
+    configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER,
+               "time.google.com", "time.cloudflare.com");
+    ntpStartedAt = millis();
+    triedClockFallback = false;
+    Serial.println(F("[CLOCK] Requested network time from three NTP servers."));
 }
 
 bool updateLocalTime() {
-    return getLocalTime(&timeinfo, 0);
+    const time_t now = time(nullptr);
+    return now >= EARLIEST_VALID_TIME && localtime_r(&now, &timeinfo) != nullptr;
+}
+
+bool clockSyncDelayed() {
+    return millis() - ntpStartedAt >= CLOCK_SYNC_WAIT_MS;
+}
+
+void retryClockSync() {
+    if (WiFi.status() != WL_CONNECTED || !clockSyncDelayed() ||
+        (triedClockFallback && millis() - clockFallbackAt < CLOCK_RETRY_INTERVAL_MS)) {
+        return;
+    }
+
+    triedClockFallback = true;
+    Serial.println(F("[CLOCK] NTP still pending. Trying Firebase server time."));
+    if (!rtdb_device_path.isEmpty() && Firebase.ready()) {
+        if (Firebase.setTimestamp(fbdo, rtdb_device_path + "/clock_sync_ms")) {
+            const double milliseconds = fbdo.doubleData();
+            if (milliseconds >= EARLIEST_VALID_TIME * 1000.0 &&
+                milliseconds < 4102444800000.0) { // 2100-01-01 UTC
+                const timeval serverTime = {static_cast<time_t>(milliseconds / 1000.0), 0};
+                // NTP may have completed while Firebase was responding.
+                if (!updateLocalTime() && settimeofday(&serverTime, nullptr) == 0) {
+                    Serial.println(F("[CLOCK] Synchronized using Firebase server time."));
+                }
+            }
+        } else {
+            Serial.print(F("[CLOCK] Firebase time request failed: "));
+            Serial.println(fbdo.errorReason());
+        }
+    }
+    clockFallbackAt = millis();
 }
 
 String getCurrentTimeFormatted() {
@@ -96,6 +139,8 @@ void initFirebase() {
     Serial.println(F("[FIREBASE] Initializing Realtime Database connection..."));
     fbConfig.host = firebase_host;
     fbConfig.signer.tokens.legacy_token = firebase_auth.c_str();
+    fbConfig.time_zone = GMT_OFFSET_SEC / 3600.0f;
+    fbConfig.daylight_offset = DAYLIGHT_OFFSET_SEC / 60.0f;
 
     Firebase.begin(&fbConfig, &fbAuth);
     Firebase.reconnectWiFi(true);

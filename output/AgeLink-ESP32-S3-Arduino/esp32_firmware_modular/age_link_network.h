@@ -28,6 +28,8 @@ void handleWiFiReconnect();
  * @brief Starts SNTP synchronization in the background.
  */
 void initNTP();
+bool clockSyncDelayed();
+void retryClockSync();
 
 /**
  * @brief Updates local struct tm timeinfo.
