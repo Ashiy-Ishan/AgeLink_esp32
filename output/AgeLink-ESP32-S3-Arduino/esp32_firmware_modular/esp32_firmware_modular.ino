@@ -70,15 +70,37 @@ void loop() {
     }
 
     audioLoop();
-    checkSosButton();
+    static bool wasInSOS = false;
+    if (updateSOS()) {
+        wasInSOS = true;
+        if (millis() - lastDBCheckTime >= DB_CHECK_INTERVAL_MS && updateLocalTime()) {
+            lastDBCheckTime = millis();
+            checkScheduledTime(getCurrentTimeFormatted(), false);
+        }
+        delay(15);
+        return;
+    }
+    if (wasInSOS) {
+        wasInSOS = false;
+        stateChangeTime = millis();
+        if (currentState == GREEN_ACTIVE || currentState == ORANGE_ACTIVE || currentState == RED_ACTIVE) {
+            startAlarmSequence(currentState);
+        } else if (currentState == CONFIRMED) {
+            showOLED("DOSE CONFIRMED", "Marked as taken", currentMedicineName);
+        }
+    }
     handleWiFiReconnect();
 
     static bool contactsSynced = false;
+    static bool contactSyncAttempted = false;
+    static unsigned long lastContactSync = 0;
     if (offlineMode || !Firebase.ready()) {
-        contactsSynced = false;
-    } else if (!contactsSynced) {
-        fetchEmergencyContact();
-        contactsSynced = true;
+        contactSyncAttempted = false;
+    } else if (currentState == IDLE &&
+               (!contactSyncAttempted || millis() - lastContactSync >= (contactsSynced ? 15000 : 5000))) {
+        contactsSynced = fetchEmergencyContact();
+        lastContactSync = millis();
+        contactSyncAttempted = true;
     }
 
     if (!updateLocalTime()) {
@@ -100,7 +122,7 @@ void loop() {
         showHomeOLED(currentTime, nextMedicineTime, nextMedicineName,
                      wifiConnected, wifiConnected ? WiFi.RSSI() : 0);
     } else if (currentState == MISSED) {
-        showOLED("DOSE MISSED", "No response", currentMedicineName);
+        showOLED("DOSE MISSED", currentMedicineName, "No confirmation", "Due " + currentMedicineTime);
     }
 
     // 6. Reminder State Machine & Ingestion Timers

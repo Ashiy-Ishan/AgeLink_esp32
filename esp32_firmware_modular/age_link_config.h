@@ -45,7 +45,6 @@ extern const char* const BLE_DEVICE_NAME;
 // Timing and Limits Constants
 // =============================================================================
 constexpr unsigned long DB_CHECK_INTERVAL_MS      = 10UL * 1000UL;      // 10s check interval
-constexpr unsigned long SOS_DEBOUNCE_DELAY_MS     = 1000UL;             // 1s debounce
 constexpr unsigned long ALARM_BEEP_DURATION_MS     = 5UL * 1000UL;       // ~5s playback duration
 constexpr unsigned long SHORT_WAIT_MS              = 60UL * 1000UL;      // 60s per reminder stage
 constexpr unsigned long WIFI_CONNECT_TIMEOUT_MS    = 30UL * 1000UL;      // 30s connection timeout
@@ -53,9 +52,8 @@ constexpr unsigned long WIFI_RETRY_INTERVAL_MS     = 30UL * 1000UL;      // 30s 
 constexpr unsigned long TIME_LOG_INTERVAL_MS       = 10UL * 1000UL;      // 10s console log interval
 constexpr unsigned long FACTORY_RESET_HOLD_MS      = 5000UL;             // 5s hold to reset
 constexpr unsigned long SOS_CALL_TIMEOUT_MS        = 40000UL;            // 40s ring timeout
-constexpr unsigned long SOS_CANCEL_WINDOW_MS       = 5000UL;             // 5s initial sound cancel window
+constexpr unsigned long SOS_CANCEL_WINDOW_MS       = 3000UL;             // Initial SOS cancellation window
 
-constexpr int MAX_CONTACTS = 5;
 
 // =============================================================================
 // Audio File Paths in LittleFS

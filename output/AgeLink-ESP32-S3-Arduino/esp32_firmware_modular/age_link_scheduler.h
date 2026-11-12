@@ -20,11 +20,6 @@ void startAlarmSequence(ReminderState phase);
 void checkFactoryResetButton();
 
 /**
- * @brief Evaluates SOS button press and invokes emergency sequence if debounced.
- */
-void checkSosButton();
-
-/**
  * @brief Main execution function for the reminder state machine.
  * Evaluates active countdowns, escalations, confirmations, and idle displays.
  */

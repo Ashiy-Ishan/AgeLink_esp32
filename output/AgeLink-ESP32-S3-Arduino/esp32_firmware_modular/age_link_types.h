@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <time.h>
+#include <vector>
 #include "age_link_config.h"
 
 // =============================================================================
@@ -30,7 +31,6 @@ struct EmergencyContact {
 extern ReminderState currentState;
 extern unsigned long stateChangeTime;
 extern unsigned long lastDBCheckTime;
-extern unsigned long lastSosPressTime;
 extern unsigned long lastWifiCheck;
 extern unsigned long greenButtonPressTime;
 extern unsigned long lastTimeLog;
@@ -41,8 +41,10 @@ extern bool deviceConnected;
 extern bool configComplete;
 
 extern String currentMedicineName;
-extern EmergencyContact contacts[MAX_CONTACTS];
-extern int contactCount;
+extern String currentMedicineDosage;
+extern String currentMedicineTime;
+extern std::vector<EmergencyContact> contacts;
+String normalizeEmergencyPhone(String number);
 extern float currentVolume;
 
 extern String nextMedicineTime;

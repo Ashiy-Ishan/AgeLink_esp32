@@ -5,31 +5,32 @@
 #include "age_link_audio.h"
 #include "age_link_network.h"
 #include "age_link_storage.h"
-#include "age_link_sim.h"
 
 void startAlarmSequence(ReminderState phase) {
     const char* soundToPlay = nullptr;
+    const String dose = currentMedicineDosage.isEmpty()
+        ? "Due " + currentMedicineTime : "Dose: " + currentMedicineDosage;
     Serial.print(F("[ALARM] Escalating alarm tier to: "));
 
     switch (phase) {
         case GREEN_ACTIVE:
             Serial.println(F("GREEN (Tier 1 - First Reminder)"));
             setLEDs(true, false, false);
-            showOLED("MEDICINE DUE", currentMedicineName, "Press green button", "when taken");
+            showOLED("MEDICINE DUE", currentMedicineName, dose, "Green: confirm taken");
             soundToPlay = SOUND_FIRST_REMINDER;
             break;
 
         case ORANGE_ACTIVE:
             Serial.println(F("ORANGE (Tier 2 - Second Reminder)"));
             setLEDs(false, true, false);
-            showOLED("REPEAT REMINDER", currentMedicineName, "Press green button", "when taken");
+            showOLED("REPEAT REMINDER", currentMedicineName, dose, "Green: confirm taken");
             soundToPlay = SOUND_SECOND_REMINDER;
             break;
 
         case RED_ACTIVE:
             Serial.println(F("RED (Tier 3 - Final Reminder)"));
             setLEDs(false, false, true);
-            showOLED("FINAL REMINDER", currentMedicineName, "Press green button", "when taken");
+            showOLED("FINAL REMINDER", currentMedicineName, dose, "Green: confirm taken");
             soundToPlay = SOUND_FINAL_REMINDER;
             break;
 
@@ -67,27 +68,16 @@ void checkFactoryResetButton() {
     }
 }
 
-void checkSosButton() {
-    if (isSosButtonPressed()) {
-        if (millis() - lastSosPressTime > (SOS_DEBOUNCE_DELAY_MS * 5)) {
-            lastSosPressTime = millis();
-            Serial.println(F("\n[SOS] --- EMERGENCY SOS BUTTON PRESSED ---"));
-            executeSosSequence();
-            Serial.println(F("[SOS] --- Emergency SOS sequence completed ---"));
-
-            stateChangeTime  = millis();
-            lastTimeLog      = millis();
-            lastSosPressTime = millis();
-        }
-    }
-}
-
 void runSchedulerStateMachine() {
-    unsigned long timeElapsed = millis() - stateChangeTime;
+    const unsigned long timeElapsed = millis() - stateChangeTime;
+    static bool medicineWasPressed = false;
+    const bool medicinePressed = isMedButtonPressed();
+    const bool medicineJustPressed = medicinePressed && !medicineWasPressed;
+    medicineWasPressed = medicinePressed;
 
     // 1. Ingestion Confirmation Check for Active Alarm States
     if (currentState == GREEN_ACTIVE || currentState == ORANGE_ACTIVE || currentState == RED_ACTIVE) {
-        if (isMedButtonPressed()) {
+        if (medicineJustPressed) {
             String confirmedStateStr;
             if (currentState == GREEN_ACTIVE)       confirmedStateStr = "Green";
             else if (currentState == ORANGE_ACTIVE) confirmedStateStr = "Orange";
@@ -101,19 +91,18 @@ void runSchedulerStateMachine() {
         }
     }
 
+    if (millis() - lastDBCheckTime >= DB_CHECK_INTERVAL_MS) {
+        lastDBCheckTime = millis();
+        const bool alarmStarted = checkScheduledTime(getCurrentTimeFormatted());
+        if (alarmStarted) return;
+        if (currentState == IDLE && !offlineMode && Firebase.ready()) {
+            fetchDeviceSettings();
+        }
+    }
+
     // 2. State-Specific Timeouts and Transitions
     switch (currentState) {
         case IDLE: {
-            if (millis() - lastDBCheckTime >= DB_CHECK_INTERVAL_MS) {
-                lastDBCheckTime = millis();
-                stopAudio();
-
-                String currentTime = getCurrentTimeFormatted();
-                bool alarmTriggered = checkScheduledTime(currentTime);
-                if (!alarmTriggered && !offlineMode && Firebase.ready()) {
-                    fetchDeviceSettings();
-                }
-            }
             checkFactoryResetButton();
             break;
         }
@@ -151,7 +140,6 @@ void runSchedulerStateMachine() {
             if (millis() - stateChangeTime >= 30000) { // 30s display banner
                 Serial.println(F("[ALARM] Missed banner expired. Returning to IDLE."));
                 currentState    = IDLE;
-                lastDBCheckTime = millis();
             }
             checkFactoryResetButton();
             break;

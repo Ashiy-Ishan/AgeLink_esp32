@@ -79,23 +79,64 @@ class _SettingsPageState extends State<SettingsPage> {
           title: Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF1E88E5).withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.contact_phone_rounded, color: Color(0xFF1E88E5))), const SizedBox(width: 12), const Text('Add Contact', style: TextStyle(fontWeight: FontWeight.bold))]),
           content: Column(mainAxisSize: MainAxisSize.min, children: [_buildInputField(controller: _nameController, label: 'Name', icon: Icons.person_rounded), const SizedBox(height: 16), _buildInputField(controller: _phoneController, label: 'Phone', icon: Icons.phone_rounded, keyboardType: TextInputType.phone)]),
           actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          actions: [TextButton(child: Text('Cancel', style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.bold, fontSize: 16)), onPressed: () => Navigator.of(context).pop()), _buildGradientButton(onPressed: () { _saveContact(name: _nameController.text.trim(), phone: _phoneController.text.trim()); Navigator.of(context).pop(); }, text: 'Save', gradient: const LinearGradient(colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)], begin: Alignment.topLeft, end: Alignment.bottomRight), width: 100, fontSize: 14, padding: const EdgeInsets.symmetric(vertical: 12.0))],
+          actions: [TextButton(child: Text('Cancel', style: TextStyle(color: Constants.mediumGrey, fontWeight: FontWeight.bold, fontSize: 16)), onPressed: () => Navigator.of(context).pop()), _buildGradientButton(onPressed: () async {
+            final saved = await _saveContact(
+              name: _nameController.text.trim(),
+              phone: _phoneController.text.trim(),
+            );
+            if (saved && context.mounted) Navigator.of(context).pop();
+          }, text: 'Save', gradient: const LinearGradient(colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)], begin: Alignment.topLeft, end: Alignment.bottomRight), width: 100, fontSize: 14, padding: const EdgeInsets.symmetric(vertical: 12.0))],
         );
       },
     );
   }
 
-  void _saveContact({required String name, required String phone}) {
-    if (name.isEmpty || phone.isEmpty) { CustomSnackBar.show(context: context, message: 'Please fill in all fields.', isError: true); return; }
-    if (currentUser == null) return;
-    _contactsRef.push().set({'name': name, 'phone': phone});
-    CustomSnackBar.show(context: context, message: 'Emergency contact saved!');
+  Future<bool> _saveContact({required String name, required String phone}) async {
+    if (currentUser == null) return false;
+    final number = phone.replaceAll(RegExp(r'[\s()\-]'), '');
+    if (name.isEmpty || !RegExp(r'^\+?[0-9]{7,15}$').hasMatch(number)) {
+      CustomSnackBar.show(
+        context: context,
+        message: 'Enter a name and a valid phone number.',
+        isError: true,
+      );
+      return false;
+    }
+
+    try {
+      await _contactsRef.push().set({'name': name, 'phone': number});
+      if (mounted) {
+        CustomSnackBar.show(context: context, message: 'Emergency contact saved.');
+      }
+      return true;
+    } catch (_) {
+      if (mounted) {
+        CustomSnackBar.show(
+          context: context,
+          message: 'Could not save the emergency contact.',
+          isError: true,
+        );
+      }
+      return false;
+    }
   }
 
-  void _deleteContact(String contactKey) {
+  Future<void> _deleteContact(String contactKey) async {
     if (currentUser == null) return;
-    _contactsRef.child(contactKey).remove();
-    CustomSnackBar.show(context: context, message: 'Contact removed.', isError: true);
+    try {
+      await _contactsRef.child(contactKey).remove();
+      if (mounted) {
+        CustomSnackBar.show(context: context, message: 'Contact removed.');
+      }
+    } catch (_) {
+      if (mounted) {
+        CustomSnackBar.show(
+          context: context,
+          message: 'Could not remove the emergency contact.',
+          isError: true,
+        );
+      }
+    }
   }
 
   Widget _sectionHeading(IconData icon, String title, String description) {

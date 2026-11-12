@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'invite_member_page.dart' hide kPrimaryGradient;
+import 'invite_member_page.dart';
 import 'family_invitation_service.dart';
 import 'gradient_scaffold.dart';
 import 'constants.dart';
@@ -34,49 +34,6 @@ class _FamilyPermissionsPageState extends State<FamilyPermissionsPage> {
     } else {
       _familyStream = const Stream.empty();
     }
-  }
-
-  Widget _buildGradientButton({
-    required VoidCallback? onPressed,
-    required String text,
-    IconData? icon,
-    required Gradient gradient,
-    double verticalPadding = 18.0,
-  }) {
-    final bool isEnabled = onPressed != null;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16.0),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-        ),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: isEnabled ? gradient : LinearGradient(colors: [Constants.mediumGrey, Constants.mediumGrey.withValues(alpha: 0.7)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: verticalPadding),
-            alignment: Alignment.center,
-            child: (icon != null)
-                ? Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white, size: 22),
-                const SizedBox(width: 8),
-                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
-              ],
-            )
-                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildEmptyState(BuildContext context) {

@@ -50,8 +50,9 @@ class _DevicePageState extends State<DevicePage> {
   void _disconnectDevice() async {
     if (_currentUser == null || _userRemindersRef == null) return;
     try {
-      try { await FirebaseFirestore.instance.collection('users').doc(_currentUser.uid).update({'pairedDeviceId': FieldValue.delete()}); } catch (e) {}
-      await _userRemindersRef!.remove();
+      await _userRemindersRef!.child('device').remove();
+      await FirebaseFirestore.instance.collection('users').doc(_currentUser.uid)
+          .set({'pairedDeviceId': FieldValue.delete()}, SetOptions(merge: true));
       if (mounted) {
         CustomSnackBar.show(context: context, message: 'Device unpaired successfully.');
         Navigator.pop(context);
@@ -103,7 +104,7 @@ class _DevicePageState extends State<DevicePage> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Are you sure you want to unpair this device? You will stop receiving alerts until you pair a device again.',
+                    'On the AgeLink device, hold the green Medicine Taken button for five seconds while it is idle. Wait for the Bluetooth setup screen, then confirm the reset here. Your schedules and dose history stay in your account.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Constants.mediumGrey,
@@ -129,7 +130,7 @@ class _DevicePageState extends State<DevicePage> {
                         ),
                       ),
                       child: const Text(
-                        'Disconnect',
+                        'I reset the device',
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -226,7 +227,7 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value, IconData icon, {Color? valueColor, bool isBadge = false}) {
+  Widget _buildInfoRow(String label, String value, IconData icon, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(children: [
@@ -262,18 +263,24 @@ class _DevicePageState extends State<DevicePage> {
           if (eventSnapshot.hasError) return Center(child: Text('Error loading data: ${eventSnapshot.error.toString()}'));
           if (!eventSnapshot.hasData || eventSnapshot.data!.snapshot.value == null) return _buildEmptyState();
 
-          final dataMap = eventSnapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-          final data = <String, dynamic>{};
-          dataMap.forEach((key, value) { data[key.toString()] = value; });
-          final deviceData = data['device'] as Map<dynamic, dynamic>? ?? {};
+          final data = eventSnapshot.data!.snapshot.value;
+          final deviceData = data is Map ? data['device'] : null;
+          if (deviceData is! Map || deviceData['device_id'] == null) {
+            return _buildEmptyState();
+          }
 
           String deviceName = deviceData['device_id']?.toString() ?? 'Unknown Device';
           final bool isActive = deviceData['device_active'] == true;
           String status = isActive ? 'Online' : 'Offline';
           Color statusColor = isActive ? const Color(0xFF4CAF50) : Colors.redAccent;
-          final String lastSyncString = deviceData['last_sync']?.toString() ?? 'N/A';
-          String lastSync = lastSyncString == 'N/A' ? 'Never' : lastSyncString;
-          try { if (lastSyncString != 'N/A') { final parts = lastSyncString.split(':'); final dt = DateTime(2025, 1, 1, int.parse(parts[0]), int.parse(parts[1])); lastSync = 'Today at ${TimeOfDay.fromDateTime(dt).format(context)}'; } } catch (e) {}
+          final lastSyncString = deviceData['last_sync']?.toString();
+          final parts = lastSyncString?.split(':') ?? [];
+          final hour = parts.length == 2 ? int.tryParse(parts[0]) : null;
+          final minute = parts.length == 2 ? int.tryParse(parts[1]) : null;
+          final lastSync = hour != null && minute != null &&
+                  hour >= 0 && hour < 24 && minute >= 0 && minute < 60
+              ? TimeOfDay(hour: hour, minute: minute).format(context)
+              : lastSyncString ?? 'Never';
 
           final num volumeNum = _parseNum(deviceData['volume'], 0.5);
           final double currentVolume = (volumeNum.toDouble() * 100.0).clamp(0.0, 100.0);

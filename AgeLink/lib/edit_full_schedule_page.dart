@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'constants.dart';
 import 'gradient_scaffold.dart';
 import 'custom_snackbar.dart';
+import 'schedule_sync_service.dart';
 
 const kPrimaryGradient = LinearGradient(
   colors: [Color(0xFF1E88E5), Color(0xFF0D47A1)],
@@ -42,7 +40,6 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
   late List _medications;
   bool _isLoading = false;
   final User? _currentUser = FirebaseAuth.instance.currentUser;
-  late final DatabaseReference _remindersRef;
 
   @override
   void initState() {
@@ -70,12 +67,6 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
       }
     }
 
-    if (_currentUser != null) {
-      _remindersRef = FirebaseDatabase.instanceFor(
-          app: Firebase.app(),
-          databaseURL: "https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app"
-      ).ref('reminders/${_currentUser.uid}');
-    }
   }
 
   @override
@@ -173,44 +164,22 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
     setState(() { _isLoading = true; });
 
     try {
-      if (_currentUser == null) throw Exception("User not logged in");
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser.uid)
-          .collection('medicationSchedules')
-          .doc(widget.scheduleId)
-          .update({
-        'scheduleName': _nameController.text.trim(),
-        'medications': _medications,
-      });
-
-      if (widget.isActive) {
-        final rtdbScheduleObject = <String, dynamic>{};
-        for (final entry in _medications) {
-          final String name = entry['name']?.toString() ?? '';
-          final String dosage = entry['dosage']?.toString() ?? '';
-          final times = entry['times'] as List? ?? [];
-
-          if (name.isNotEmpty && times.isNotEmpty) {
-            for (var t in times) {
-              final String timeStr = t.toString();
-              final String safeName = name.replaceAll(' ', '_');
-              String key = "${safeName}_${timeStr.replaceAll(":", "")}";
-              rtdbScheduleObject[key] = {
-                'name': name,
-                'dosage': dosage,
-                'time': timeStr,
-              };
-            }
-          }
-        }
-        await _remindersRef.child('schedule/med_times').set(rtdbScheduleObject);
-        await _remindersRef.child('schedule/current_status').set("IDLE");
-      }
-
+      final user = _currentUser;
+      if (user == null) throw StateError('User not logged in');
+      final synced = await ScheduleSyncService.save(
+        user.uid,
+        _nameController.text.trim(),
+        _medications.map((entry) => Map<String, dynamic>.from(entry as Map)).toList(),
+        scheduleId: widget.scheduleId,
+      );
       if (mounted) {
-        CustomSnackBar.show(context: context, message: 'Schedule updated successfully!');
+        CustomSnackBar.show(
+          context: context,
+          message: synced
+              ? 'Schedule updated.'
+              : 'Schedule saved. Device sync failed and will retry when AgeLink opens.',
+          isError: !synced,
+        );
         Navigator.pop(context);
         Navigator.pop(context);
       }
@@ -227,23 +196,17 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
     setState(() { _isLoading = true; });
 
     try {
-      if (_currentUser == null) throw Exception("User not logged in");
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser.uid)
-          .collection('medicationSchedules')
-          .doc(widget.scheduleId)
-          .delete();
-
-      if (widget.isActive) {
-        await _remindersRef.child('schedule/med_times').remove();
-        await _remindersRef.child('schedule/current_status').set("IDLE");
-      }
-
+      final user = _currentUser;
+      if (user == null) throw StateError('User not logged in');
+      final synced = await ScheduleSyncService.delete(user.uid, widget.scheduleId);
       if (mounted) {
-        CustomSnackBar.show(context: context, message: 'Schedule deleted.');
-        Navigator.pop(context);
+        CustomSnackBar.show(
+          context: context,
+          message: synced
+              ? 'Schedule deleted.'
+              : 'Schedule deleted in the app. Device sync will retry when AgeLink opens.',
+          isError: !synced,
+        );
         Navigator.pop(context);
       }
     } catch (e) {
@@ -299,91 +262,6 @@ class _EditFullSchedulePageState extends State<EditFullSchedulePage> {
       },
     );
   }
-
-  Widget _buildGradientButton({
-    required VoidCallback? onPressed,
-    required String text,
-    IconData? icon,
-    required Gradient gradient,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16.0),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          elevation: 0,
-        ),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: gradient,
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 18.0),
-            alignment: Alignment.center,
-            child: (icon != null)
-                ? Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white, size: 22),
-                const SizedBox(width: 8),
-                Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
-              ],
-            )
-                : Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputField({
-    TextEditingController? controller,
-    String? initialValue,
-    void Function(String)? onChanged,
-    required String label,
-    required IconData icon,
-    String? Function(String?)? validator,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: controller,
-        initialValue: initialValue,
-        onChanged: onChanged,
-        validator: validator,
-        style: TextStyle(color: Constants.darkGrey, fontWeight: FontWeight.w500),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: Constants.mediumGrey, fontSize: 14),
-          prefixIcon: Icon(icon, color: const Color(0xFF1E88E5)),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.transparent,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        ),
-      ),
-    );
-  }
-
 
   Widget _sectionTitle(int number, String title, String subtitle) {
     return Row(

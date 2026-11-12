@@ -131,12 +131,12 @@ bool saveContactsToFile() {
         return false;
     }
 
-    StaticJsonDocument<512> doc;
+    JsonDocument doc;
     JsonArray array = doc.to<JsonArray>();
-    for (int i = 0; i < contactCount; i++) {
-        JsonObject contactObj = array.createNestedObject();
-        contactObj["name"]  = contacts[i].name;
-        contactObj["phone"] = contacts[i].phone;
+    for (const auto& contact : contacts) {
+        JsonObject item = array.add<JsonObject>();
+        item["name"] = contact.name;
+        item["phone"] = contact.phone;
     }
 
     if (serializeJson(doc, contactFile) == 0) {
@@ -163,33 +163,25 @@ bool loadContactsFromFile() {
         return false;
     }
 
-    StaticJsonDocument<512> doc;
-    DeserializationError error = deserializeJson(doc, contactFile);
+    JsonDocument doc;
+    const DeserializationError error = deserializeJson(doc, contactFile);
     contactFile.close();
-
-    if (error) {
-        Serial.print(F("[STORAGE] Failed to parse /contacts.json: "));
-        Serial.println(error.c_str());
+    if (error || !doc.is<JsonArray>()) {
+        Serial.println(F("[STORAGE] Invalid cached emergency contacts."));
         return false;
     }
 
-    JsonArray array = doc.as<JsonArray>();
-    contactCount = 0;
-    for (JsonObject obj : array) {
-        if (contactCount >= MAX_CONTACTS) break;
-        contacts[contactCount].name  = obj["name"].as<String>();
-        contacts[contactCount].phone = obj["phone"].as<String>();
-        Serial.print(F("[STORAGE] Loaded contact: "));
-        Serial.print(contacts[contactCount].name);
-        Serial.print(F(" ("));
-        Serial.print(contacts[contactCount].phone);
-        Serial.println(F(")"));
-        contactCount++;
+    contacts.clear();
+    for (JsonObjectConst item : doc.as<JsonArrayConst>()) {
+        String phone = normalizeEmergencyPhone(item["phone"].as<String>());
+        if (phone.isEmpty()) continue;
+        String name = item["name"] | "";
+        contacts.push_back({name.isEmpty() ? String("Emergency contact") : name, phone});
     }
 
-    Serial.print(F("[STORAGE] Total contacts loaded from file: "));
-    Serial.println(contactCount);
-    return (contactCount > 0);
+    Serial.printf("[STORAGE] Loaded %u emergency contacts.\n",
+                  static_cast<unsigned int>(contacts.size()));
+    return !contacts.empty();
 }
 
 bool saveScheduleToFile(const String& scheduleJson) {

@@ -7,11 +7,25 @@
 #include "age_link_scheduler.h"
 
 #include <addons/TokenHelper.h>
+#include <ArduinoJson.h>
+#include <deque>
+#include <vector>
 
 // Firebase Objects Definition
 FirebaseData fbdo;
 FirebaseConfig fbConfig;
 FirebaseAuth fbAuth;
+
+struct ScheduledDose {
+    String key;
+    String name;
+    String dosage;
+    String time;
+    String date;
+};
+
+static ScheduledDose activeDose;
+static std::deque<ScheduledDose> pendingDoses;
 
 void initWiFi() {
     Serial.print(F("[WIFI] Connecting to SSID: "));
@@ -123,96 +137,101 @@ void fetchDeviceSettings() {
     }
 }
 
-void fetchEmergencyContact() {
-    Serial.println(F("[FIREBASE] Fetching emergency contacts..."));
-    if (Firebase.get(fbdo, rtdb_emergency_path)) {
-        contactCount = 0;
-        if (fbdo.dataType() == "json") {
-            FirebaseJson json;
-            json.setJsonData(fbdo.jsonString());
-            size_t len = json.iteratorBegin();
-            FirebaseJsonData result;
-
-            for (size_t i = 0; i < len && contactCount < MAX_CONTACTS; i++) {
-                String key, value;
-                int type = 0;
-                json.iteratorGet(i, type, key, value);
-
-                FirebaseJson tempJson;
-                tempJson.setJsonData(value);
-
-                String tempPhone, tempName;
-                if (tempJson.get(result, FPSTR("phone"))) {
-                    tempPhone = result.stringValue;
-                    tempPhone.trim();
-                }
-                if (tempJson.get(result, FPSTR("name"))) {
-                    tempName = result.stringValue;
-                    tempName.trim();
-                }
-
-                if (tempPhone.length() > 6 && !tempName.isEmpty()) {
-                    contacts[contactCount].name  = tempName;
-                    contacts[contactCount].phone = tempPhone;
-                    Serial.print(F("[FIREBASE] Contact loaded: "));
-                    Serial.print(tempName);
-                    Serial.print(F(" -> "));
-                    Serial.println(tempPhone);
-                    contactCount++;
-                }
-            }
-            json.iteratorEnd();
-        }
-        saveContactsToFile();
-    } else {
-        Serial.print(F("[FIREBASE] Failed to read emergency contacts: "));
+bool fetchEmergencyContact() {
+    const bool received = Firebase.get(fbdo, rtdb_emergency_path);
+    if (!received && fbdo.httpCode() != FIREBASE_ERROR_PATH_NOT_EXIST) {
+        Serial.print(F("[FIREBASE] Could not read emergency contacts: "));
         Serial.println(fbdo.errorReason());
-    }
-}
-
-bool checkScheduledTime(const String& currentTime) {
-    if (currentState != IDLE && currentState != MISSED) {
         return false;
     }
 
-    static String schedule = loadScheduleFromFile();
-    static time_t lastAlarmMinute = -1;
-    const bool cloudReady = !offlineMode && Firebase.ready();
-
-    if (cloudReady) {
-        Firebase.setString(fbdo, rtdb_device_path + "/last_sync", currentTime);
-        if (Firebase.get(fbdo, rtdb_schedule_path + "/med_times")) {
-            const String downloaded = fbdo.dataType() == "json" ? fbdo.jsonString() : String("{}");
-            if (downloaded != schedule && saveScheduleToFile(downloaded)) {
-                Serial.println(F("[SCHEDULE] Updated offline backup."));
-            }
-            schedule = downloaded;
+    JsonDocument doc;
+    if (received) {
+        const DeserializationError error = deserializeJson(doc, fbdo.payload());
+        if (error || (!doc.is<JsonObject>() && !doc.is<JsonArray>() && !doc.isNull())) {
+            Serial.println(F("[FIREBASE] Invalid emergency contact list."));
+            return false;
         }
     }
 
-    FirebaseJson json;
-    if (!schedule.isEmpty()) {
-        json.setJsonData(schedule);
+    std::vector<EmergencyContact> updated;
+    const auto addContact = [&updated](JsonVariantConst item) {
+        String phone = normalizeEmergencyPhone(item["phone"].as<String>());
+        if (phone.isEmpty()) return;
+        String name = item["name"] | "";
+        name.trim();
+        updated.push_back({name.isEmpty() ? String("Emergency contact") : name, phone});
+    };
+    if (doc.is<JsonObject>()) {
+        for (JsonPairConst entry : doc.as<JsonObjectConst>()) addContact(entry.value());
+    } else {
+        for (JsonVariantConst entry : doc.as<JsonArrayConst>()) addContact(entry);
     }
-    size_t count = json.iteratorBegin();
+
+    bool changed = contacts.size() != updated.size();
+    for (size_t i = 0; !changed && i < updated.size(); ++i) {
+        changed = contacts[i].name != updated[i].name || contacts[i].phone != updated[i].phone;
+    }
+    if (changed) {
+        contacts.swap(updated);
+        saveContactsToFile();
+    }
+    Serial.printf("[FIREBASE] Synced %u emergency contacts.\n",
+                  static_cast<unsigned int>(contacts.size()));
+    return true;
+}
+
+bool checkScheduledTime(const String& currentTime, bool allowStart) {
+    static String schedule = loadScheduleFromFile();
+    static time_t lastEvaluatedMinute = -1;
+    static std::vector<String> queuedKeys;
+    const bool cloudReady = allowStart && !offlineMode && Firebase.ready();
+    const bool idle = allowStart && currentState == IDLE;
+    tm evaluationTime = timeinfo;
+    const time_t currentMinute = mktime(&evaluationTime) / 60;
+    char scheduledDate[11];
+    strftime(scheduledDate, sizeof(scheduledDate), "%Y-%m-%d", &evaluationTime);
+
+    if (currentMinute != lastEvaluatedMinute) {
+        queuedKeys.clear();
+        lastEvaluatedMinute = currentMinute;
+    }
+
+    if (cloudReady && idle) {
+        Firebase.setString(fbdo, rtdb_device_path + "/last_sync", currentTime);
+        const bool received = Firebase.get(fbdo, rtdb_schedule_path + "/med_times");
+        if (received || fbdo.httpCode() == FIREBASE_ERROR_PATH_NOT_EXIST) {
+            const String downloaded = received && fbdo.dataType() == "json"
+                ? fbdo.jsonString() : String("{}");
+            if (downloaded != schedule) {
+                JsonDocument incoming;
+                if (!deserializeJson(incoming, downloaded) && incoming.is<JsonObject>()) {
+                    if (saveScheduleToFile(downloaded)) {
+                        Serial.println(F("[SCHEDULE] Updated offline backup."));
+                    }
+                    if (incoming.as<JsonObjectConst>().size() == 0) pendingDoses.clear();
+                    schedule = downloaded;
+                } else {
+                    Serial.println(F("[SCHEDULE] Invalid Firebase schedule; using backup."));
+                }
+            }
+        }
+    }
+
+    JsonDocument doc;
+    if (!schedule.isEmpty() && deserializeJson(doc, schedule)) {
+        Serial.println(F("[SCHEDULE] Invalid cached schedule."));
+        doc.clear();
+    }
     String earliestTime = "25:00";
     String earliestName = "None";
     String nextTime = "25:00";
     String nextName = "None";
-    const time_t currentMinute = time(nullptr) / 60;
-    bool alarmTriggered = false;
 
-    for (size_t i = 0; i < count; i++) {
-        String key, value;
-        int type = 0;
-        json.iteratorGet(i, type, key, value);
-        FirebaseJson entry;
-        entry.setJsonData(value);
-        FirebaseJsonData result;
-        if (!entry.get(result, "time") || result.type != "string") {
-            continue;
-        }
-        String medicineTime = result.stringValue;
+    for (JsonPairConst pair : doc.as<JsonObjectConst>()) {
+        const String key = pair.key().c_str();
+        const JsonObjectConst entry = pair.value().as<JsonObjectConst>();
+        String medicineTime = entry["time"].as<String>();
         medicineTime.trim();
         if (medicineTime.length() == 4 && medicineTime[1] == ':') {
             medicineTime = "0" + medicineTime;
@@ -224,8 +243,11 @@ bool checkScheduledTime(const String& currentTime) {
             medicineTime.substring(3).toInt() > 59) {
             continue;
         }
-        String medicineName = entry.get(result, "name") ? result.stringValue : String("Medicine");
+        String medicineName = entry["name"] | "";
         medicineName.trim();
+        if (medicineName.isEmpty()) medicineName = "Medicine";
+        String dosage = entry["dosage"] | "";
+        dosage.trim();
 
         if (medicineTime < earliestTime) {
             earliestTime = medicineTime;
@@ -235,16 +257,20 @@ bool checkScheduledTime(const String& currentTime) {
             nextTime = medicineTime;
             nextName = medicineName;
         }
-        if (medicineTime == currentTime && currentMinute != lastAlarmMinute) {
-            currentMedicineName = medicineName;
-            currentState = GREEN_ACTIVE;
-            stateChangeTime = millis();
-            lastAlarmMinute = currentMinute;
-            alarmTriggered = true;
-            startAlarmSequence(GREEN_ACTIVE);
+        if (medicineTime == currentTime) {
+            bool alreadyQueued = false;
+            for (const String& queuedKey : queuedKeys) {
+                if (queuedKey == key) {
+                    alreadyQueued = true;
+                    break;
+                }
+            }
+            if (!alreadyQueued) {
+                pendingDoses.push_back({key, medicineName, dosage, medicineTime, scheduledDate});
+                queuedKeys.push_back(key);
+            }
         }
     }
-    json.iteratorEnd();
 
     nextMedicineTime = nextTime != "25:00" ? nextTime : earliestTime;
     nextMedicineName = nextTime != "25:00" ? nextName : earliestName;
@@ -252,13 +278,30 @@ bool checkScheduledTime(const String& currentTime) {
         nextMedicineTime = "--:--";
     }
 
-    if (alarmTriggered && cloudReady) {
+    if (!idle || pendingDoses.empty()) return false;
+
+    activeDose = pendingDoses.front();
+    pendingDoses.pop_front();
+    currentMedicineName = activeDose.name;
+    currentMedicineDosage = activeDose.dosage;
+    currentMedicineTime = activeDose.time;
+    currentState = GREEN_ACTIVE;
+    stateChangeTime = millis();
+    startAlarmSequence(GREEN_ACTIVE);
+    if (cloudReady) {
         Firebase.setString(fbdo, rtdb_schedule_path + "/current_status", "ACTIVE");
     }
-    return alarmTriggered;
+    return true;
+}
+
+static void addDoseIdentity(FirebaseJson& record) {
+    record.set("dose_key", activeDose.key);
+    record.set("scheduled_at", activeDose.time);
+    record.set("scheduled_date", activeDose.date);
 }
 
 void handleConfirmation(const String& state) {
+    showOLED("DOSE CONFIRMED", "Marked as taken", currentMedicineName);
     playWavFile(SOUND_MEDICINE_CONFIRM);
 
     unsigned long confirmStart = millis();
@@ -269,12 +312,12 @@ void handleConfirmation(const String& state) {
     stopAudio();
 
     FirebaseJson confirmationJson;
+    addDoseIdentity(confirmationJson);
     confirmationJson.set("confirmed_at", getCurrentTimeFormatted());
     confirmationJson.set("medicine_name", currentMedicineName);
     confirmationJson.set("reminder_state", state);
     confirmationJson.set("confirmed_at_timestamp/.sv", "timestamp");
 
-    showOLED("DOSE CONFIRMED", "Dose taken", currentMedicineName);
     if (offlineMode || !Firebase.ready()) {
         return;
     }
@@ -294,6 +337,7 @@ void handleMissed(const String& medicineName) {
     stopAudio();
 
     FirebaseJson missedJson;
+    addDoseIdentity(missedJson);
     missedJson.set("confirmed_at", getCurrentTimeFormatted());
     missedJson.set("medicine_name", medicineName);
     missedJson.set("reminder_state", "MISSED");

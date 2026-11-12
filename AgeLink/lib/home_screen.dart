@@ -4,14 +4,17 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 import 'constants.dart';
-import 'pair_device_page.dart' hide kPrimaryGradient;
+import 'pair_device_page.dart';
+import 'schedule_sync_service.dart';
 
 class _TodayDose {
+  final String key;
   final String time;
   final String name;
   final String dosage;
 
   _TodayDose({
+    required this.key,
     required this.time,
     required this.name,
     required this.dosage,
@@ -30,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final User? _currentUser = FirebaseAuth.instance.currentUser;
   late final DatabaseReference _deviceRef;
   late final DatabaseReference _medsRef;
-  late final DatabaseReference _historyRef;
+  late final Stream<DatabaseEvent> _confirmationStream;
 
   @override
   void initState() {
@@ -43,11 +46,11 @@ class _HomeScreenState extends State<HomeScreen> {
         app: Firebase.app(),
         databaseURL: 'https://agelink-f4680-default-rtdb.asia-southeast1.firebasedatabase.app',
       );
-      final uid = _currentUser!.uid;
-      final todayDate = DateFormat('yyyy-MM-dd').format(now);
+      final uid = _currentUser.uid;
       _deviceRef = db.ref('reminders/$uid/device');
       _medsRef = db.ref('reminders/$uid/schedule/med_times');
-      _historyRef = db.ref('reminders/$uid/history/$todayDate');
+      _confirmationStream = db.ref('reminders/$uid/confirmation').onValue;
+      ScheduleSyncService.triggerSync(uid);
     }
   }
 
@@ -111,9 +114,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildWelcome() {
     String firstName = '';
-    if (_currentUser!.displayName != null &&
-        _currentUser!.displayName!.trim().isNotEmpty) {
-      firstName = _currentUser!.displayName!.trim().split(' ').first;
+    final displayName = _currentUser?.displayName?.trim();
+    if (displayName != null && displayName.isNotEmpty) {
+      firstName = displayName.split(' ').first;
     }
     final greeting = firstName.isNotEmpty ? 'Hello, $firstName' : 'Hello';
 
@@ -601,6 +604,7 @@ class _HomeScreenState extends State<HomeScreen> {
               final todayDoses = medTimesMap.entries.map((entry) {
                 final med = Map<String, dynamic>.from(entry.value as Map);
                 return _TodayDose(
+                  key: entry.key.toString(),
                   time: med['time'] ?? '00:00',
                   name: med['name'] ?? 'N/A',
                   dosage: med['dosage'] ?? 'N/A',
@@ -613,40 +617,52 @@ class _HomeScreenState extends State<HomeScreen> {
                 return _buildEmptyScheduleState();
               }
 
-              return FutureBuilder<DatabaseEvent>(
-                future: _historyRef.once(),
+              return StreamBuilder<DatabaseEvent>(
+                stream: _confirmationStream,
                 builder: (context, historySnapshot) {
-                  final historyMap = historySnapshot.data?.snapshot.value as Map<dynamic, dynamic>? ?? {};
-                  List<Map<String, dynamic>> processedDoses = [];
-                  DateTime now = DateTime.now();
-                  int takenCount = 0;
-
-                  for (var dose in todayDoses) {
-                    final String safeName = dose.name.replaceAll(' ', '_');
-                    final String doseKey = '${safeName}_${dose.time.replaceAll(':', '')}';
-                    String status = historyMap[doseKey]?['status']?.toString() ?? 'pending';
-
-                    if (status == 'pending') {
-                      try {
-                        final timeParts = dose.time.split(':');
-                        final scheduledTime = DateTime(
-                          now.year,
-                          now.month,
-                          now.day,
-                          int.parse(timeParts[0]),
-                          int.parse(timeParts[1]),
-                        );
-                        if (scheduledTime.isBefore(now)) {
-                          status = 'missed';
-                        }
-                      } catch (e) {}
+                  final now = DateTime.now();
+                  final today = DateFormat('yyyy-MM-dd').format(now);
+                  final nowTime = DateFormat('HH:mm').format(now);
+                  final statuses = <(String, String, String), (int, String)>{};
+                  for (final child in historySnapshot.data?.snapshot.children ?? <DataSnapshot>[]) {
+                    final record = child.value;
+                    if (record is! Map) continue;
+                    final timestamp = record['confirmed_at_timestamp'] ?? record['date'];
+                    if (timestamp is! int) continue;
+                    final recordedDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
+                    final date = record['scheduled_date'] ?? DateFormat('yyyy-MM-dd').format(recordedDate);
+                    if (date != today) continue;
+                    final state = record['reminder_state'];
+                    final String status;
+                    if (state == 'MISSED') {
+                      status = 'missed';
+                    } else if (state == 'Green' || state == 'Orange' || state == 'Red') {
+                      status = 'taken';
+                    } else {
+                      continue;
                     }
+                    final key = (
+                      record['dose_key']?.toString() ?? '',
+                      record['medicine_name']?.toString() ?? '',
+                      (record['scheduled_at'] ?? record['confirmed_at'])?.toString() ?? '',
+                    );
+                    if (timestamp >= (statuses[key]?.$1 ?? 0)) {
+                      statuses[key] = (timestamp, status);
+                    }
+                  }
 
+                  final processedDoses = <Map<String, dynamic>>[];
+                  int takenCount = 0;
+                  for (final dose in todayDoses) {
+                    final status = statuses[(dose.key, dose.name, dose.time)]?.$2 ??
+                        statuses[('', dose.name, dose.time)]?.$2 ?? 'pending';
                     if (status == 'taken') takenCount++;
                     processedDoses.add({'dose': dose, 'status': status});
                   }
 
-                  int nextDoseIndex = processedDoses.indexWhere((d) => d['status'] == 'pending');
+                  int nextDoseIndex = processedDoses.indexWhere((d) =>
+                      d['status'] == 'pending' &&
+                      (d['dose'] as _TodayDose).time.compareTo(nowTime) >= 0);
                   List<Widget> scheduleWidgets = [];
                   final missedCount = processedDoses.where((d) => d['status'] == 'missed').length;
 
