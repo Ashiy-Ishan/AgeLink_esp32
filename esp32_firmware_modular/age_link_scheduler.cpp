@@ -6,6 +6,14 @@
 #include "age_link_network.h"
 #include "age_link_storage.h"
 
+static void showFirstReminder(const String& dose) {
+    const size_t page = ((millis() - stateChangeTime) / 3000) %
+                        (nearbyMedicineLabels.size() + 1);
+    showOLED("MEDICINE DUE", currentMedicineName,
+             page == 0 ? dose : "Next " + nearbyMedicineLabels[page - 1],
+             "Green: confirm taken");
+}
+
 void startAlarmSequence(ReminderState phase) {
     const char* soundToPlay = nullptr;
     const String dose = currentMedicineDosage.isEmpty()
@@ -16,7 +24,7 @@ void startAlarmSequence(ReminderState phase) {
         case GREEN_ACTIVE:
             Serial.println(F("GREEN (Tier 1 - First Reminder)"));
             setLEDs(true, false, false);
-            showOLED("MEDICINE DUE", currentMedicineName, dose, "Green: confirm taken");
+            showFirstReminder(dose);
             soundToPlay = SOUND_FIRST_REMINDER;
             break;
 
@@ -95,7 +103,7 @@ void runSchedulerStateMachine() {
         lastDBCheckTime = millis();
         const bool alarmStarted = checkScheduledTime(getCurrentTimeFormatted());
         if (alarmStarted) return;
-        if (currentState == IDLE && !offlineMode && Firebase.ready()) {
+        if (currentState == IDLE && !isAudioPlaying() && !offlineMode && Firebase.ready()) {
             fetchDeviceSettings();
         }
     }
@@ -108,6 +116,10 @@ void runSchedulerStateMachine() {
         }
 
         case GREEN_ACTIVE: {
+            if (!nearbyMedicineLabels.empty()) {
+                showFirstReminder(currentMedicineDosage.isEmpty()
+                    ? "Due " + currentMedicineTime : "Dose: " + currentMedicineDosage);
+            }
             if (timeElapsed >= (ALARM_BEEP_DURATION_MS + SHORT_WAIT_MS)) {
                 currentState    = ORANGE_ACTIVE;
                 stateChangeTime = millis();

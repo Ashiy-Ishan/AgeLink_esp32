@@ -43,6 +43,7 @@ extern bool configComplete;
 extern String currentMedicineName;
 extern String currentMedicineDosage;
 extern String currentMedicineTime;
+extern std::vector<String> nearbyMedicineLabels;
 extern std::vector<EmergencyContact> contacts;
 String normalizeEmergencyPhone(String number);
 extern float currentVolume;

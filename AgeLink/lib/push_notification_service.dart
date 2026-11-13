@@ -38,7 +38,6 @@ class PushNotificationService {
   StreamSubscription<RemoteMessage>? _messageSubscription;
 
   bool _initialized = false;
-  String? _registeredUserId;
 
   DatabaseReference get _database => FirebaseDatabase.instanceFor(
     app: Firebase.app(),
@@ -77,9 +76,7 @@ class PushNotificationService {
       android: androidSettings,
     );
 
-    await _localNotifications.initialize(
-      settings: settings,
-    );
+    await _localNotifications.initialize(settings);
 
     await _localNotifications
         .resolvePlatformSpecificImplementation<
@@ -100,8 +97,6 @@ class PushNotificationService {
             } catch (error) {
               debugPrint('Push registration failed: $error');
             }
-          } else {
-            _registeredUserId = null;
           }
         });
 
@@ -120,10 +115,10 @@ class PushNotificationService {
           if (notification == null) return;
 
           await _localNotifications.show(
-            id: message.messageId.hashCode,
-            title: notification.title ?? 'AgeLink',
-            body: notification.body ?? 'New medication activity',
-            notificationDetails: const NotificationDetails(
+            message.messageId.hashCode,
+            notification.title ?? 'AgeLink',
+            notification.body ?? 'New medication activity',
+            const NotificationDetails(
               android: AndroidNotificationDetails(
                 'agelink_medication_alerts',
                 'Medication Alerts',
@@ -162,8 +157,6 @@ class PushNotificationService {
     await _database
         .child('pushTokens/${user.uid}/$deviceId')
         .set(token);
-
-    _registeredUserId = user.uid;
   }
 
   Future<void> unregisterDevice() async {
@@ -175,8 +168,6 @@ class PushNotificationService {
     await _database
         .child('pushTokens/${user.uid}/$deviceId')
         .remove();
-
-    _registeredUserId = null;
   }
 
   Future<void> dispose() async {

@@ -8,6 +8,7 @@
 
 #include <addons/TokenHelper.h>
 #include <ArduinoJson.h>
+#include <algorithm>
 #include <deque>
 #include <sys/time.h>
 #include <vector>
@@ -23,10 +24,17 @@ struct ScheduledDose {
     String dosage;
     String time;
     String date;
+    time_t dueMinute;
+    std::vector<String> nearbyLabels;
 };
 
 static ScheduledDose activeDose;
 static std::deque<ScheduledDose> pendingDoses;
+static constexpr int NEARBY_DOSE_MINUTES = 10;
+
+static int minutesSinceMidnight(const String& time) {
+    return time.substring(0, 2).toInt() * 60 + time.substring(3).toInt();
+}
 static constexpr time_t EARLIEST_VALID_TIME = 1704067200; // 2024-01-01 UTC
 static constexpr unsigned long CLOCK_SYNC_WAIT_MS = 15000;
 static constexpr unsigned long CLOCK_RETRY_INTERVAL_MS = 60000;
@@ -154,31 +162,21 @@ void initFirebase() {
 void fetchDeviceSettings() {
     if (offlineMode) return;
 
-    stopAudio();
-
-    if (Firebase.get(fbdo, rtdb_device_path)) {
-        if (fbdo.dataType() == "json") {
-            FirebaseJson json;
-            json.setJsonData(fbdo.jsonString());
-            FirebaseJsonData result;
-
-            if (json.get(result, FPSTR("volume"))) {
-                if (result.type == "float" || result.type == "int" || result.type == "double") {
-                    float newVolume = result.floatValue;
-                    if (newVolume < 0.0f) newVolume = 0.0f;
-                    if (newVolume > 1.0f) newVolume = 1.0f;
-
-                    if (abs(newVolume - currentVolume) > 0.01f) {
-                        setAudioVolume(newVolume);
-                        Serial.print(F("[FIREBASE] New audio volume applied: "));
-                        Serial.println(currentVolume);
-                    }
-                }
-            }
-        }
-    } else {
+    if (!Firebase.get(fbdo, rtdb_device_path + "/volume")) {
+        if (fbdo.httpCode() == FIREBASE_ERROR_PATH_NOT_EXIST) return;
         Serial.print(F("[FIREBASE] Warning reading device settings: "));
         Serial.println(fbdo.errorReason());
+        return;
+    }
+
+    const String type = fbdo.dataType();
+    if (type == "int" || type == "float" || type == "double") {
+        const float volume = constrain(static_cast<float>(fbdo.doubleData()), 0.0f, 1.0f);
+        if (volume != currentVolume) {
+            setAudioVolume(volume);
+            Serial.print(F("[AUDIO] Applied app volume: "));
+            Serial.println(currentVolume);
+        }
     }
 }
 
@@ -272,6 +270,7 @@ bool checkScheduledTime(const String& currentTime, bool allowStart) {
     String earliestName = "None";
     String nextTime = "25:00";
     String nextName = "None";
+    std::vector<std::pair<int, String>> nearby;
 
     for (JsonPairConst pair : doc.as<JsonObjectConst>()) {
         const String key = pair.key().c_str();
@@ -302,6 +301,11 @@ bool checkScheduledTime(const String& currentTime, bool allowStart) {
             nextTime = medicineTime;
             nextName = medicineName;
         }
+        const int offset = (minutesSinceMidnight(medicineTime) -
+                            evaluationTime.tm_hour * 60 - evaluationTime.tm_min + 1440) % 1440;
+        if (offset > 0 && offset <= NEARBY_DOSE_MINUTES) {
+            nearby.emplace_back(offset, medicineTime + " " + medicineName);
+        }
         if (medicineTime == currentTime) {
             bool alreadyQueued = false;
             for (const String& queuedKey : queuedKeys) {
@@ -311,10 +315,19 @@ bool checkScheduledTime(const String& currentTime, bool allowStart) {
                 }
             }
             if (!alreadyQueued) {
-                pendingDoses.push_back({key, medicineName, dosage, medicineTime, scheduledDate});
+                pendingDoses.push_back({key, medicineName, dosage, medicineTime,
+                                        scheduledDate, currentMinute, {}});
                 queuedKeys.push_back(key);
             }
         }
+    }
+
+    std::stable_sort(nearby.begin(), nearby.end(),
+                     [](const auto& first, const auto& second) { return first.first < second.first; });
+    for (auto& dose : pendingDoses) {
+        if (dose.dueMinute != currentMinute) continue;
+        dose.nearbyLabels.clear();
+        for (const auto& entry : nearby) dose.nearbyLabels.push_back(entry.second);
     }
 
     nextMedicineTime = nextTime != "25:00" ? nextTime : earliestTime;
@@ -330,6 +343,11 @@ bool checkScheduledTime(const String& currentTime, bool allowStart) {
     currentMedicineName = activeDose.name;
     currentMedicineDosage = activeDose.dosage;
     currentMedicineTime = activeDose.time;
+    // A dose queued during SOS may start after its nearby dose is already due.
+    nearbyMedicineLabels.clear();
+    if (activeDose.dueMinute == currentMinute) {
+        nearbyMedicineLabels = std::move(activeDose.nearbyLabels);
+    }
     currentState = GREEN_ACTIVE;
     stateChangeTime = millis();
     startAlarmSequence(GREEN_ACTIVE);

@@ -9,6 +9,7 @@ import 'help_page.dart';
 import 'edit_profile_page.dart';
 import 'constants.dart';
 import 'custom_snackbar.dart';
+import 'local_reminder_sync.dart';
 
 class AppMenuDrawer extends StatelessWidget {
   const AppMenuDrawer({super.key});
@@ -21,6 +22,7 @@ class AppMenuDrawer extends StatelessWidget {
         context: context,
         message: 'Logging out...'
     );
+    await LocalReminderSync.clear();
     await FirebaseAuth.instance.signOut();
   }
 

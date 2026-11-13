@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  firebase_messaging: ^16.0.4
+  flutter_local_notifications: ^19.5.0
   firebase_core: ^4.2.0  # For Firebase initialization
   firebase_auth: ^6.1.1 # For Authentication
   cloud_firestore: ^6.0.3 # For saving user details (like name) after sign-up
@@ -37,7 +39,6 @@ dependencies:
   flutter_blue_plus: ^1.35.4
   permission_handler: ^11.0.0
   pubspec_parse: ^1.5.0
-  firebase_messaging: ^16.0.4
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
