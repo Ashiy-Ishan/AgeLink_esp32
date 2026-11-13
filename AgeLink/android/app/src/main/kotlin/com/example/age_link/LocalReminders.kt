@@ -20,6 +20,8 @@ internal object LocalReminders {
     private const val DOSES = "doses"
     private const val NEXT = "next"
     private const val TRIGGER = "trigger"
+    private const val TEST = "com.example.age_link.TEST_REMINDER"
+    private const val LAST_DELIVERY = "last_delivery"
     private const val DAY_MS = 86_400_000L
     private val zone = TimeZone.getTimeZone("Asia/Colombo")
 
@@ -36,7 +38,9 @@ internal object LocalReminders {
         return mapOf(
             "notifications" to (manager.areNotificationsEnabled() && channelEnabled),
             "exact" to canScheduleExact(context),
-            "doses" to doses(context).size
+            "doses" to doses(context).size,
+            "next" to prefs(context).getLong(NEXT, 0),
+            "lastDelivery" to prefs(context).getLong(LAST_DELIVERY, 0)
         )
     }
 
@@ -61,6 +65,7 @@ internal object LocalReminders {
     fun clear(context: Context) {
         prefs(context).edit().clear().commit()
         alarms(context).cancel(deliveryIntent(context, 0))
+        alarms(context).cancel(testIntent(context))
         val manager = notifications(context)
         for (notification in manager.activeNotifications) {
             if (notification.tag?.startsWith("agelink-dose:") == true) {
@@ -84,6 +89,13 @@ internal object LocalReminders {
     }
 
     fun deliver(context: Context, intent: Intent) {
+        if (intent.action == TEST) {
+            if (prefs(context).getString(OWNER, null) != null) {
+                post(context, "AgeLink test reminder", "Phone reminders are working.",
+                     "agelink-dose:test")
+            }
+            return
+        }
         val expected = intent.getLongExtra(TRIGGER, 0)
         val storage = prefs(context)
         if (expected == 0L || storage.getLong(NEXT, 0) != expected) return
@@ -97,14 +109,31 @@ internal object LocalReminders {
         var due = if (now - expected < DAY_MS) expected else nextAt(schedule, now - DAY_MS)
         // Claim this delivery before posting so a duplicate broadcast cannot replay it.
         storage.edit().remove(NEXT).commit()
+        var posted = false
         while (due != 0L && due <= now) {
             val minute = minuteAt(due)
+            val time = "%02d:%02d".format(java.util.Locale.ROOT, minute / 60, minute % 60)
             schedule.filter { it.minute == minute }.forEachIndexed { index, dose ->
-                post(context, dose, due, index)
+                if (post(context, dose.name.ifBlank { "Medication reminder" },
+                         "Scheduled for $time", "agelink-dose:$due:$index")) {
+                    posted = true
+                }
             }
             due = nextAt(schedule, due)
         }
+        if (posted) storage.edit().putLong(LAST_DELIVERY, now).apply()
         arm(context, due)
+    }
+
+    fun test(context: Context) {
+        val current = status(context)
+        check(current["notifications"] == true) { "Enable AgeLink notifications first." }
+        check(current["exact"] == true) { "Allow Alarms & reminders first." }
+        check(prefs(context).getString(OWNER, null) != null) { "Sign in to AgeLink first." }
+        alarms(context).setAlarmClock(
+            AlarmManager.AlarmClockInfo(System.currentTimeMillis() + 5000, openApp(context)),
+            testIntent(context)
+        )
     }
 
     private fun doses(context: Context): List<Dose> {
@@ -144,6 +173,11 @@ internal object LocalReminders {
             Intent(context, LocalReminderReceiver::class.java).putExtra(TRIGGER, trigger),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+    private fun testIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+        context, 1, Intent(context, LocalReminderReceiver::class.java).setAction(TEST),
+        PendingIntent.FLAG_IMMUTABLE
+    )
 
     private fun openApp(context: Context): PendingIntent =
         PendingIntent.getActivity(
@@ -185,11 +219,13 @@ internal object LocalReminders {
     }
 
     @Suppress("DEPRECATION")
-    private fun post(context: Context, dose: Dose, due: Long, index: Int) {
+    private fun post(context: Context, title: String, body: String, tag: String): Boolean {
         createChannel(context)
         val manager = notifications(context)
-        if (!manager.areNotificationsEnabled()) return
-        val time = "%02d:%02d".format(java.util.Locale.ROOT, dose.minute / 60, dose.minute % 60)
+        if (!manager.areNotificationsEnabled() || (Build.VERSION.SDK_INT >= 26 &&
+                manager.getNotificationChannel(CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE)) {
+            return false
+        }
         fun builder(): Notification.Builder =
             if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, CHANNEL)
             else Notification.Builder(context).setPriority(Notification.PRIORITY_HIGH)
@@ -199,15 +235,20 @@ internal object LocalReminders {
             .setContentTitle("AgeLink reminder").setContentText("A medicine is scheduled.")
             .build()
         val reminder = builder().setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle(dose.name.ifBlank { "Medication reminder" })
-            .setContentText("Scheduled for $time")
+            .setContentTitle(title)
+            .setContentText(body)
             .setCategory(Notification.CATEGORY_REMINDER)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setPublicVersion(public)
             .setContentIntent(openApp(context))
             .setAutoCancel(true)
             .build()
-        manager.notify("agelink-dose:$due:$index", 0, reminder)
+        return try {
+            manager.notify(tag, 0, reminder)
+            true
+        } catch (_: SecurityException) {
+            false
+        }
     }
 }
 

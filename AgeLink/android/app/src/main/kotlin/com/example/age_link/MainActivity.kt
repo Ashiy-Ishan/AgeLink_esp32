@@ -34,6 +34,16 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                     "status" -> result.success(LocalReminders.status(this))
+                    "test" -> {
+                        try {
+                            LocalReminders.test(this)
+                            result.success(null)
+                        } catch (error: IllegalStateException) {
+                            result.error("reminder_setup_required", error.message, null)
+                        } catch (_: SecurityException) {
+                            result.error("reminder_setup_required", "Allow Alarms & reminders first.", null)
+                        }
+                    }
                     "exactSettings" -> {
                         if (Build.VERSION.SDK_INT >= 31) {
                             startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
