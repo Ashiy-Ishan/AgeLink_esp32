@@ -18,12 +18,6 @@ extern AudioGeneratorWAV *audioGen;
 void initAudio();
 
 /**
- * @brief Adjusts the I2S output volume gain.
- * @param volume Fractional gain from 0.0 (mute) to 1.0 (100%).
- */
-void setAudioVolume(float volume);
-
-/**
  * @brief Starts non-blocking playback of a WAV file stored in LittleFS.
  * @param filename File path in LittleFS (e.g., "/first_reminder.wav").
  */

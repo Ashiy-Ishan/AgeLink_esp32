@@ -40,7 +40,8 @@ void initAudio() {
     audioOut = new AudioOutputI2S();
     audioOut->SetPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
     audioOut->begin();
-    setAudioVolume(currentVolume);
+    // The loudest bundled WAV peaks at 77% of full scale.
+    audioOut->SetGain(1.28f);
 
     audioFile = new AudioFileSourceLittleFS();
     audioGen  = new AudioGeneratorWAV();
@@ -50,15 +51,6 @@ void initAudio() {
     audioFile->RegisterStatusCB(file_status_cb, nullptr);
 
     Serial.println(F("[AUDIO] I2S MAX98357A driver initialized successfully."));
-}
-
-void setAudioVolume(float volume) {
-    if (volume < 0.0f) volume = 0.0f;
-    if (volume > 1.0f) volume = 1.0f;
-    currentVolume = volume;
-    if (audioOut) {
-        audioOut->SetGain(currentVolume);
-    }
 }
 
 void playWavFile(const char* filename) {

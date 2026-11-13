@@ -46,7 +46,6 @@ extern String currentMedicineTime;
 extern std::vector<String> nearbyMedicineLabels;
 extern std::vector<EmergencyContact> contacts;
 String normalizeEmergencyPhone(String number);
-extern float currentVolume;
 
 extern String nextMedicineTime;
 extern String nextMedicineName;

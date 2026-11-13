@@ -103,9 +103,6 @@ void runSchedulerStateMachine() {
         lastDBCheckTime = millis();
         const bool alarmStarted = checkScheduledTime(getCurrentTimeFormatted());
         if (alarmStarted) return;
-        if (currentState == IDLE && !isAudioPlaying() && !offlineMode && Firebase.ready()) {
-            fetchDeviceSettings();
-        }
     }
 
     // 2. State-Specific Timeouts and Transitions

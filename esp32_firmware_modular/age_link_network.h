@@ -49,11 +49,6 @@ String getCurrentTimeFormatted();
 void initFirebase();
 
 /**
- * @brief Reads remote device configurations (such as audio volume) from Firebase RTDB.
- */
-void fetchDeviceSettings();
-
-/**
  * @brief Downloads user emergency contacts from Firebase and syncs to local storage.
  */
 bool fetchEmergencyContact();

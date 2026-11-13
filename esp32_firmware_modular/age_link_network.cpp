@@ -159,27 +159,6 @@ void initFirebase() {
     }
 }
 
-void fetchDeviceSettings() {
-    if (offlineMode) return;
-
-    if (!Firebase.get(fbdo, rtdb_device_path + "/volume")) {
-        if (fbdo.httpCode() == FIREBASE_ERROR_PATH_NOT_EXIST) return;
-        Serial.print(F("[FIREBASE] Warning reading device settings: "));
-        Serial.println(fbdo.errorReason());
-        return;
-    }
-
-    const String type = fbdo.dataType();
-    if (type == "int" || type == "float" || type == "double") {
-        const float volume = constrain(static_cast<float>(fbdo.doubleData()), 0.0f, 1.0f);
-        if (volume != currentVolume) {
-            setAudioVolume(volume);
-            Serial.print(F("[AUDIO] Applied app volume: "));
-            Serial.println(currentVolume);
-        }
-    }
-}
-
 bool fetchEmergencyContact() {
     const bool received = Firebase.get(fbdo, rtdb_emergency_path);
     if (!received && fbdo.httpCode() != FIREBASE_ERROR_PATH_NOT_EXIST) {
