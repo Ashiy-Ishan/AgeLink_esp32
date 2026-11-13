@@ -160,9 +160,10 @@ void initFirebase() {
 }
 
 bool fetchEmergencyContact() {
+    if (rtdb_emergency_path.isEmpty()) return false;
     const bool received = Firebase.get(fbdo, rtdb_emergency_path);
     if (!received && fbdo.httpCode() != FIREBASE_ERROR_PATH_NOT_EXIST) {
-        Serial.print(F("[FIREBASE] Could not read emergency contacts: "));
+        Serial.printf("[FIREBASE] Contact sync failed (%d): ", fbdo.httpCode());
         Serial.println(fbdo.errorReason());
         return false;
     }
@@ -178,6 +179,7 @@ bool fetchEmergencyContact() {
 
     std::vector<EmergencyContact> updated;
     const auto addContact = [&updated](JsonVariantConst item) {
+        if (!item.is<JsonObjectConst>()) return;
         String phone = normalizeEmergencyPhone(item["phone"].as<String>());
         if (phone.isEmpty()) return;
         String name = item["name"] | "";
@@ -185,9 +187,20 @@ bool fetchEmergencyContact() {
         updated.push_back({name.isEmpty() ? String("Emergency contact") : name, phone});
     };
     if (doc.is<JsonObject>()) {
-        for (JsonPairConst entry : doc.as<JsonObjectConst>()) addContact(entry.value());
+        // App-generated push keys sort in the order contacts were added.
+        std::vector<JsonPairConst> entries;
+        for (JsonPairConst entry : doc.as<JsonObjectConst>()) entries.push_back(entry);
+        std::sort(entries.begin(), entries.end(), [](JsonPairConst a, JsonPairConst b) {
+            return strcmp(a.key().c_str(), b.key().c_str()) < 0;
+        });
+        for (const auto& entry : entries) addContact(entry.value());
     } else {
         for (JsonVariantConst entry : doc.as<JsonArrayConst>()) addContact(entry);
+    }
+
+    if (updated.empty() && doc.size() != 0) {
+        Serial.println(F("[FIREBASE] No dialable numbers in the downloaded contact list."));
+        return false;
     }
 
     bool changed = contacts.size() != updated.size();
@@ -195,8 +208,8 @@ bool fetchEmergencyContact() {
         changed = contacts[i].name != updated[i].name || contacts[i].phone != updated[i].phone;
     }
     if (changed) {
+        if (!saveContactsToFile(updated)) return false;
         contacts.swap(updated);
-        saveContactsToFile();
     }
     Serial.printf("[FIREBASE] Synced %u emergency contacts.\n",
                   static_cast<unsigned int>(contacts.size()));

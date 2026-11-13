@@ -148,9 +148,9 @@ bool updateSOS() {
             if (pressed) {
                 finish("Cancelled", "", SOUND_SOS_CALL_CANCEL);
             } else if (elapsed >= SOS_CANCEL_WINDOW_MS) {
+                const bool synced = WiFi.status() == WL_CONNECTED && Firebase.ready() &&
+                                    fetchEmergencyContact();
                 if (contacts.empty()) {
-                    const bool synced = WiFi.status() == WL_CONNECTED && Firebase.ready() &&
-                                        fetchEmergencyContact();
                     if (!synced) {
                         finish("No saved numbers", "Check Wi-Fi and app");
                     } else if (contacts.empty()) {

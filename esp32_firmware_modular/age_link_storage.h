@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 #include <string>
+#include <vector>
+
+struct EmergencyContact;
 
 // =============================================================================
 // LittleFS Storage Operations
@@ -32,10 +35,10 @@ bool loadConfiguration();
 bool saveConfiguration(const std::string& data);
 
 /**
- * @brief Saves currently loaded emergency contacts array to /contacts.json.
+ * @brief Saves the supplied emergency contacts array to /contacts.json.
  * @return true on success.
  */
-bool saveContactsToFile();
+bool saveContactsToFile(const std::vector<EmergencyContact>& updated);
 
 /**
  * @brief Loads saved emergency contacts from /contacts.json into memory.

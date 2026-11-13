@@ -123,30 +123,32 @@ bool saveConfiguration(const std::string& data) {
     return true;
 }
 
-bool saveContactsToFile() {
-    Serial.println(F("[STORAGE] Saving contacts to /contacts.json..."));
-    File contactFile = LittleFS.open("/contacts.json", "w");
-    if (!contactFile) {
-        Serial.println(F("[STORAGE] Failed to open /contacts.json for writing."));
-        return false;
-    }
-
+bool saveContactsToFile(const std::vector<EmergencyContact>& updated) {
     JsonDocument doc;
     JsonArray array = doc.to<JsonArray>();
-    for (const auto& contact : contacts) {
+    for (const auto& contact : updated) {
         JsonObject item = array.add<JsonObject>();
         item["name"] = contact.name;
         item["phone"] = contact.phone;
     }
 
-    if (serializeJson(doc, contactFile) == 0) {
-        Serial.println(F("[STORAGE] Failed to serialize contacts to /contacts.json."));
-        contactFile.close();
+    const char* temporaryPath = "/contacts.tmp";
+    File contactFile = LittleFS.open(temporaryPath, "w");
+    if (!contactFile) {
+        Serial.println(F("[STORAGE] Could not open temporary contacts file."));
         return false;
     }
 
+    const size_t expectedSize = measureJson(doc);
+    const size_t written = serializeJson(doc, contactFile);
     contactFile.close();
-    Serial.println(F("[STORAGE] Successfully saved contacts to LittleFS."));
+    if (doc.overflowed() || written != expectedSize ||
+        !LittleFS.rename(temporaryPath, "/contacts.json")) {
+        LittleFS.remove(temporaryPath);
+        Serial.println(F("[STORAGE] Could not save emergency contacts."));
+        return false;
+    }
+    Serial.println(F("[STORAGE] Saved emergency contacts to LittleFS."));
     return true;
 }
 
@@ -206,6 +208,7 @@ void deleteConfigurationFiles() {
     if (LittleFS.remove("/config.json")) {
         Serial.println(F("[STORAGE] Deleted /config.json"));
     }
+    LittleFS.remove("/contacts.tmp");
     if (LittleFS.remove("/contacts.json")) {
         Serial.println(F("[STORAGE] Deleted /contacts.json"));
     }

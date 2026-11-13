@@ -96,8 +96,7 @@ void loop() {
     static unsigned long lastContactSync = 0;
     if (offlineMode || !Firebase.ready()) {
         contactSyncAttempted = false;
-    } else if (currentState == IDLE &&
-               (!contactSyncAttempted || millis() - lastContactSync >= (contactsSynced ? 15000 : 5000))) {
+    } else if (!contactSyncAttempted || millis() - lastContactSync >= (contactsSynced ? 15000 : 5000)) {
         contactsSynced = fetchEmergencyContact();
         lastContactSync = millis();
         contactSyncAttempted = true;
